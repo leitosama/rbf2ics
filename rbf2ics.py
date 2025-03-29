@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, date, timezone
 import re
 from typing import Tuple
+from types import SimpleNamespace
 import json
 import logging
 
@@ -13,8 +14,6 @@ HOME_EMOJI = "🏠"
 VIDEO_EMOJI = "🛜"
 
 logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
 
 def get_team_info(team_id: int):
     team_info = json.loads(requests.get(f"https://org.infobasket.su/Widget/TeamInfo/{team_id}?format=json").text, object_hook=lambda d: SimpleNamespace(**d))
@@ -32,7 +31,7 @@ def get_video(s: str) -> str:
         return "-"
     regexp = r"src=('|\")(https:|)\/\/([-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b(?:[-a-zA-Z0-9()@:%_\+.~#?&\/=]*))('|\")"
     search = re.search(regexp, s)
-    logger.debug(f"VideoID: {s}")
+    logging.debug(f"VideoID: {s}")
     return f"https://{search.group(3)}"
 
 def get_datetime(item) -> Tuple[str, str]:
@@ -66,20 +65,25 @@ def make_ics_event(item, team_id: int) -> str:
     if item.json.VideoID:
         video = get_video(item.json.VideoID)
     else:
-        video = "-"
+        video = "Ссылка не опубликована :("
     logging.debug(f"VideoID: {video}")
-    watch_emoji = None   
-    if item.json.ArenaId == HOME_ARENAID and item.json.TeamAid == team_id:
+    watch_emoji = None
+    if int(item.json.ArenaId) == HOME_ARENAID and int(item.json.TeamAid) == int(team_id):
         watch_emoji = HOME_EMOJI
         location = HOME_ADDRESS
     else:
         watch_emoji = VIDEO_EMOJI
-        location = video
+        if video == "Ссылка не опубликована :(":
+            location = video
+        else:
+            location = link
+
+    logging.debug(f"Location: {location}")
     summary = f"🏀 {watch_emoji} {item.json.ShortTeamNameAru} vs {item.json.ShortTeamNameBru}"
     logging.debug(f"Summary: {summary}")
     dtstart, dtend = get_datetime(item)
     logging.debug(f"{dtstart} - {dtend}")
-    description = f"Трансляция: {video}\nАрена: {item.json.ArenaRu}\nСсылка на матч: {link}"
+    description = f"Трансляция: {video}\\nАрена: {item.json.ArenaRu}\\nСсылка на матч: {link}"
     # logging.debug(description)
     ics_content = f"BEGIN:VEVENT\nSUMMARY:{summary}\nDESCRIPTION:{description}\nLOCATION:{location}\nDTSTART;{dtstart}\nDTEND;{dtend}\nEND:VEVENT\n"
 
@@ -94,14 +98,14 @@ def make_ics_calendar(team_id: int, team_info, team_games) -> str:
     return ics_content
 
 # for local
-# team_id = 3204
-# team_info = get_team_info(team_id)
-# team_games = get_team_games(team_id)
+team_id = 3204
+team_info = get_team_info(team_id)
+team_games = get_team_games(team_id)
 
 # for n8n
 # team_id = _('Webhook').item.json.query.teamId
 # team_info = _('TeamInfo').item
 # team_games = _input.all()
 
-# ics_calendar = make_ics_calendar(team_id,team_info,team_games)
+ics_calendar = make_ics_calendar(team_id,team_info,team_games)
 # return [{'json':{'text':ics_calendar}}]
