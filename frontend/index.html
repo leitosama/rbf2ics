@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Календарь матчей РФБ</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="basketball-icon">🏀</div>
+            <h1>Календарь матчей РФБ</h1>
+            <p>Choose your favorite team and arena to generate your custom link</p>
+        </header>
+        
+        <div class="form-container">
+            <div class="form-group">
+                <label for="team-select">Select Your Team</label>
+                <select id="team-select" class="select-input">
+                    <option value="">Choose a team...</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="arena-select">Select Arena</label>
+                <select id="arena-select" class="select-input">
+                    <option value="">Choose an arena...</option>
+                </select>
+            </div>
+            
+            <button id="generate-btn" class="generate-btn" disabled>
+                Generate Link
+            </button>
+        </div>
+        
+        <div id="result-container" class="result-container hidden">
+            <h3>Your Generated Link:</h3>
+            <div class="link-display">
+                <input type="text" id="generated-link" readonly class="link-input" />
+                <button id="copy-btn" class="copy-btn">Copy</button>
+            </div>
+            <div id="copy-feedback" class="copy-feedback hidden">
+                Link copied to clipboard! 🎉
+            </div>
+            
+            <div class="calendar-buttons">
+                <h4>Add to Calendar:</h4>
+                <div class="calendar-button-group">
+                    <button id="apple-calendar-btn" class="calendar-btn apple-btn">
+                        📅 Webdav Calendar (iPhone)
+                    </button>
+                    <button id="google-calendar-btn" class="calendar-btn google-btn">
+                        📅 Google Calendar
+                    </button>
+                    <button id="outlook-calendar-btn" class="calendar-btn outlook-btn">
+                        📅 Outlook Calendar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="footer">
+        <p>Made with 🏀 by <a href="https://github.com/leitosama/rbf2ics" target="_blank" rel="noopener noreferrer">leitosama</a></p>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>

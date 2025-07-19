@@ -1,0 +1,393 @@
+:root {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    line-height: 1.6;
+    font-weight: 400;
+    
+    --primary-orange: #FF6B35;
+    --primary-blue: #1E3A8A;
+    --secondary-blue: #3B82F6;
+    --accent-gold: #F59E0B;
+    --text-dark: #1F2937;
+    --text-light: #6B7280;
+    --bg-white: #FFFFFF;
+    --bg-gray: #F9FAFB;
+    --border-gray: #E5E7EB;
+    --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    
+    color: var(--text-dark);
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    padding: 20px;
+}
+
+.container {
+    max-width: 600px;
+    margin: 0 auto;
+    background: var(--bg-white);
+    border-radius: 16px;
+    box-shadow: var(--shadow-lg);
+    overflow: hidden;
+}
+
+.header {
+    background: linear-gradient(135deg, var(--primary-orange), var(--secondary-blue));
+    color: white;
+    padding: 40px 30px;
+    text-align: center;
+}
+
+.basketball-icon {
+    font-size: 3rem;
+    margin-bottom: 16px;
+    animation: bounce 2s infinite;
+}
+
+@keyframes bounce {
+    0%, 20%, 50%, 80%, 100% {
+        transform: translateY(0);
+    }
+    40% {
+        transform: translateY(-10px);
+    }
+    60% {
+        transform: translateY(-5px);
+    }
+}
+
+.header h1 {
+    font-size: 2.5rem;
+    margin-bottom: 8px;
+    font-weight: 700;
+}
+
+.header p {
+    font-size: 1.1rem;
+    opacity: 0.9;
+    font-weight: 300;
+}
+
+.form-container {
+    padding: 40px 30px;
+}
+
+.form-group {
+    margin-bottom: 32px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: var(--text-dark);
+    font-size: 1.1rem;
+}
+
+.select-input {
+    width: 100%;
+    padding: 16px;
+    border: 2px solid var(--border-gray);
+    border-radius: 12px;
+    font-size: 1rem;
+    background: var(--bg-white);
+    color: var(--text-dark);
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.select-input:focus {
+    outline: none;
+    border-color: var(--primary-orange);
+    box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.1);
+}
+
+.select-input:hover {
+    border-color: var(--primary-orange);
+}
+
+.generate-btn {
+    width: 100%;
+    padding: 16px 24px;
+    background: var(--border-gray);
+    color: var(--text-light);
+    border: none;
+    border-radius: 12px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    cursor: not-allowed;
+    transition: all 0.3s ease;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.generate-btn.active {
+    background: linear-gradient(135deg, var(--primary-orange), var(--secondary-blue));
+    color: white;
+    cursor: pointer;
+    transform: translateY(-2px);
+    box-shadow: var(--shadow);
+}
+
+.generate-btn.active:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-lg);
+}
+
+.generate-btn.active:active {
+    transform: translateY(-1px);
+}
+
+.result-container {
+    background: var(--bg-gray);
+    padding: 30px;
+    border-top: 1px solid var(--border-gray);
+    animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.result-container h3 {
+    margin-bottom: 16px;
+    color: var(--text-dark);
+    font-size: 1.3rem;
+}
+
+.link-display {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.link-input {
+    flex: 1;
+    padding: 12px 16px;
+    border: 2px solid var(--border-gray);
+    border-radius: 8px;
+    background: var(--bg-white);
+    font-size: 0.9rem;
+    color: var(--text-dark);
+}
+
+.link-input:focus {
+    outline: none;
+    border-color: var(--primary-orange);
+}
+
+.copy-btn {
+    padding: 12px 20px;
+    background: var(--primary-blue);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    min-width: 80px;
+}
+
+.copy-btn:hover {
+    background: var(--secondary-blue);
+    transform: translateY(-1px);
+}
+
+.copy-btn.copied {
+    background: var(--accent-gold);
+}
+
+.copy-feedback {
+    text-align: center;
+    color: var(--accent-gold);
+    font-weight: 600;
+    animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.calendar-buttons {
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border-gray);
+}
+
+.calendar-buttons h4 {
+    margin-bottom: 12px;
+    color: var(--text-dark);
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.calendar-button-group {
+    display: flex;
+    gap: 12px;
+}
+
+.calendar-btn {
+    flex: 1;
+    padding: 12px 16px;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.apple-btn {
+    background: #007AFF;
+    color: white;
+}
+
+.apple-btn:hover {
+    background: #0056CC;
+    transform: translateY(-1px);
+}
+
+.google-btn {
+    background: #4285F4;
+    color: white;
+}
+
+.google-btn:hover {
+    background: #3367D6;
+    transform: translateY(-1px);
+}
+
+.outlook-btn {
+    background: #0078D4;
+    color: white;
+}
+
+.outlook-btn:hover {
+    background: #106EBE;
+    transform: translateY(-1px);
+}
+
+.hidden {
+    display: none;
+}
+
+.footer {
+    text-align: center;
+    padding: 20px;
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 0.9rem;
+}
+
+.footer a {
+    color: var(--accent-gold);
+    text-decoration: none;
+    font-weight: 600;
+    transition: color 0.3s ease;
+}
+
+.footer a:hover {
+    color: white;
+    text-decoration: underline;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    body {
+        padding: 10px;
+    }
+    
+    .container {
+        margin: 0;
+        border-radius: 12px;
+    }
+    
+    .header {
+        padding: 30px 20px;
+    }
+    
+    .header h1 {
+        font-size: 2rem;
+    }
+    
+    .header p {
+        font-size: 1rem;
+    }
+    
+    .form-container {
+        padding: 30px 20px;
+    }
+    
+    .result-container {
+        padding: 20px;
+    }
+    
+    .link-display {
+        flex-direction: column;
+    }
+    
+    .copy-btn {
+        width: 100%;
+    }
+    
+    .calendar-button-group {
+        flex-direction: column;
+    }
+    
+    .calendar-btn {
+        margin-bottom: 8px;
+    }
+    
+    .calendar-btn:last-child {
+        margin-bottom: 0;
+    }
+}
+
+@media (max-width: 480px) {
+    .header h1 {
+        font-size: 1.8rem;
+    }
+    
+    .basketball-icon {
+        font-size: 2.5rem;
+    }
+    
+    .form-container {
+        padding: 25px 15px;
+    }
+    
+    .select-input {
+        padding: 14px;
+    }
+    
+    .generate-btn {
+        padding: 14px 20px;
+        font-size: 1rem;
+    }
+}
