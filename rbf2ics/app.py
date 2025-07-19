@@ -16,14 +16,10 @@ class RequestFailedException(Exception):
 
 ARENAS = {
     11745: {
-        "address": r'Север\nУчительская улица\, 61\, Новосибирск\, Новосибирская область\, Россия\, 630110',
-        "2gis": "https://go.2gis.com/pzJ4S",
-        "ymaps": "https://yandex.ru/maps/-/CHHnUK7O"
+        "address": r'Север\nУчительская улица\, 61\, Новосибирск\, Новосибирская область\, Россия\, 630110'
     },
     11926: {
-        "address": r'ДС Динамо\nУлица Лавочкина\, 32\, Москва\, Россия\, 125581',
-        "2gis": "https://go.2gis.com/FTXFY",
-        "ymaps": "https://yandex.ru/maps/-/CHHnaJYm"
+        "address": r'ДС Динамо\nУлица Лавочкина\, 32\, Москва\, Россия\, 125581'
     }
 }
 
@@ -118,8 +114,7 @@ def make_ics_event(item, team_id: int, arena_id: int) -> str:
     logging.debug(f"Summary: {summary}")
     dtstart, dtend = get_datetime(item)
     logging.debug(f"{dtstart} - {dtend}")
-    description = f"Трансляция: {video}\\nАрена: {item.json.ArenaRu}\\nСсылка на матч: {link}\\n2ГИС: {ARENAS[arena_id]['2gis']}\\nЯндекс.Карты: {ARENAS[arena_id]['ymaps']}"
-    # logging.debug(description)
+    description = f"Трансляция: {video}\\nАрена: {item.json.ArenaRu}\\nСсылка на матч: {link}"
     ics_content = f"BEGIN:VEVENT\nSUMMARY:{summary}\nDESCRIPTION:{description}\nLOCATION:{location}\nDTSTART;{dtstart}\nDTEND;{dtend}\nEND:VEVENT\n"
 
     return ics_content
