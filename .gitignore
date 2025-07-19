@@ -243,6 +243,9 @@ $RECYCLE.BIN/
 
 # End of https://www.gitignore.io/api/osx,linux,python,windows,pycharm,visualstudiocode
 
+## AWS SAM
+.aws-sam
+
 ## Project specific
 *.ipynb
 *.ics
