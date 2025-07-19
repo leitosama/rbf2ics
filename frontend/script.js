@@ -123,7 +123,7 @@ function setupEventListeners() {
         const link = generateLink();
         
         if (link) {
-            const googleCalendarLink = `https://calendar.google.com/calendar/render?cid=webcal://${link}`;
+            const googleCalendarLink = `https://calendar.google.com/calendar/render?cid=webcal://${link}`.replace('&','%26');
             window.open(googleCalendarLink, '_blank');
         }
     });
@@ -133,7 +133,7 @@ function setupEventListeners() {
         const link = generateLink();
         
         if (link) {
-            const outlookCalendarLink = `https://outlook.live.com/owa?path=/calendar/action/compose&rru=addsubscription&url=webcal://${link}`;
+            const outlookCalendarLink = `https://outlook.live.com/owa?path=/calendar/action/compose&rru=addsubscription&url=webcal://${link}`.replace('&','%26');
             window.open(outlookCalendarLink, '_blank');
         }
     });
