@@ -37,6 +37,20 @@ jobs:
         with:
           yc-sa-id: ${{ secrets.YC_SA_ID }}
 
+      - name: Configure Terraform provider mirror
+        run: |
+          cat > ~/.terraformrc << 'EOF'
+          provider_installation {
+            network_mirror {
+              url = "https://terraform-mirror.yandexcloud.net/"
+              include = ["registry.terraform.io/*/*"]
+            }
+            direct {
+              exclude = ["registry.terraform.io/*/*"]
+            }
+          }
+          EOF
+
       - name: terraform init
         run: terraform init
 
