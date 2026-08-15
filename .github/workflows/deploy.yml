@@ -1,0 +1,61 @@
+name: Deploy (terraform)
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Terraform action to run"
+        type: choice
+        options:
+          - plan
+          - apply
+        default: plan
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .deploy/project
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.TF_BACKEND_ACCESS_KEY }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_BACKEND_SECRET_KEY }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Get Yandex Cloud IAM token
+        id: yc-token
+        uses: docker://ghcr.io/yc-actions/yc-iam-token-fed:1.0.0
+        with:
+          yc-sa-id: ${{ secrets.YC_SA_ID }}
+
+      - name: terraform init
+        run: terraform init
+
+      - name: terraform plan
+        if: ${{ inputs.action == 'plan' }}
+        env:
+          YC_TOKEN: ${{ steps.yc-token.outputs.token }}
+          YC_CLOUD_ID: ${{ secrets.YC_CLOUD_ID }}
+          YC_FOLDER_ID: ${{ secrets.YC_FOLDER_ID }}
+          TF_VAR_defaultfolder_id: ${{ secrets.TF_VAR_defaultfolder_id }}
+          TF_VAR_frontend_address: ${{ vars.TF_VAR_frontend_address }}
+        run: terraform plan
+
+      - name: terraform apply
+        if: ${{ inputs.action == 'apply' }}
+        env:
+          YC_TOKEN: ${{ steps.yc-token.outputs.token }}
+          YC_CLOUD_ID: ${{ secrets.YC_CLOUD_ID }}
+          YC_FOLDER_ID: ${{ secrets.YC_FOLDER_ID }}
+          TF_VAR_defaultfolder_id: ${{ secrets.TF_VAR_defaultfolder_id }}
+          TF_VAR_frontend_address: ${{ vars.TF_VAR_frontend_address }}
+        run: terraform apply -auto-approve

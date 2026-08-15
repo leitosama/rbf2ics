@@ -1,0 +1,7 @@
+cloud_id          = "b1gxxxxxxxxxxxxxxxxx"
+infra_folder_id   = "b1gxxxxxxxxxxxxxxxxx"
+wif_federation_id = "wlifxxxxxxxxxxxxxxxx"
+github_org        = "my-github-org"
+github_repo       = "my-project-repo"
+project_key       = "my-project"
+project_name      = "My Project"

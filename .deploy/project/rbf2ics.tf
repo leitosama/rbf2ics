@@ -9,7 +9,7 @@ terraform {
     endpoints = {
       s3 = "https://storage.yandexcloud.net"
     }
-    bucket = "tf-backend"
+    bucket = "tfstate-rbf2ics"
     region = "ru-central1"
     key    = "rbf2ics.tfstate"
 
