@@ -48,7 +48,7 @@ data "yandex_resourcemanager_folder" "folder" {
 resource "archive_file" "content" {
   type = "zip"
   output_path = "${path.module}/content.zip"
-  source_dir = "${path.module}/../rbf2ics"
+  source_dir = "${path.module}/../../rbf2ics"
 }
 
 # 4. Function
