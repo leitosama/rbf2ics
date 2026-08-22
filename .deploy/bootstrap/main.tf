@@ -29,11 +29,13 @@ resource "yandex_resourcemanager_folder_iam_member" "deploy_storage_admin" {
   member    = "serviceAccount:${yandex_iam_service_account.deploy.id}"
 }
 
-# Позволяет tier-2 читать корневую DNS-зону из infra и заводить в ней поддомены проекта.
-# Прав на запись намеренно нет.
-resource "yandex_resourcemanager_folder_iam_member" "deploy_dns_viewer" {
+# Tier-2 заводит в корневой DNS-зоне из infra поддомен проекта
+# (yandex_dns_recordset.frontend). Для создания recordset нужна запись в зону,
+# поэтому dns.editor, а не dns.viewer. _iam_member аддитивен: добавляет только
+# этот SA и не затрагивает остальных участников общей infra-папки.
+resource "yandex_resourcemanager_folder_iam_member" "deploy_dns_editor" {
   folder_id = var.infra_folder_id
-  role      = "dns.viewer"
+  role      = "dns.editor"
   member    = "serviceAccount:${yandex_iam_service_account.deploy.id}"
 }
 
