@@ -29,14 +29,19 @@ resource "yandex_resourcemanager_folder_iam_member" "deploy_storage_admin" {
   member    = "serviceAccount:${yandex_iam_service_account.deploy.id}"
 }
 
-# Tier-2 заводит в корневой DNS-зоне из infra поддомен проекта
-# (yandex_dns_recordset.frontend). Для создания recordset нужна запись в зону,
-# поэтому dns.editor, а не dns.viewer. _iam_member аддитивен: добавляет только
-# этот SA и не затрагивает остальных участников общей infra-папки.
-resource "yandex_resourcemanager_folder_iam_member" "deploy_dns_editor" {
-  folder_id = var.infra_folder_id
-  role      = "dns.editor"
-  member    = "serviceAccount:${yandex_iam_service_account.deploy.id}"
+# Собственная публичная подзона проекта, вложенная в корневую зону из infra.
+# Создаётся здесь, в tier-1, намеренно: YC требует dns.editor/dns.admin/editor/admin
+# на каталог с РОДИТЕЛЬСКОЙ зоной, чтобы завести вложенную публичную зону, а этот
+# модуль применяется под сессией yc CLI живого человека — права на infra у него есть.
+# Дальше работает вторая половина правила YC: "для управления подзоной и записями в
+# ней права на родительскую зону не требуются". Поэтому tier-2 пишет свои записи
+# folder-правами в собственной папке и не получает НИКАКИХ прав на infra в DNS-контуре.
+resource "yandex_dns_zone" "project" {
+  folder_id   = yandex_resourcemanager_folder.project.id
+  name        = "dns-${var.project_key}"
+  description = "Публичная подзона проекта ${var.project_name}"
+  zone        = "${var.project_domain}."
+  public      = true
 }
 
 # Tier-2 читает TLS-сертификат из infra (data.yandex_cm_certificate.cert), чтобы

@@ -37,3 +37,13 @@ variable "project_name" {
   type        = string
   description = "Человекочитаемое имя проекта, используется только в описаниях ресурсов"
 }
+
+variable "project_domain" {
+  type        = string
+  description = "Домен проекта — он же имя его публичной DNS-подзоны, вложенной в корневую зону из infra. Без завершающей точки: точка добавляется в ресурсе зоны"
+
+  validation {
+    condition     = !endswith(var.project_domain, ".")
+    error_message = "project_domain задаётся без завершающей точки (напр. app.example.com) — точка добавляется автоматически."
+  }
+}

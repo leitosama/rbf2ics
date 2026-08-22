@@ -13,6 +13,11 @@ output "deploy_sa_name" {
   description = "Имя деплойного сервисного аккаунта"
 }
 
+output "project_dns_zone_id" {
+  value       = yandex_dns_zone.project.id
+  description = "ID публичной DNS-подзоны проекта — в неё tier-2 пишет записи, не имея прав на infra"
+}
+
 output "project_state_bucket" {
   value       = yandex_storage_bucket.project_state.bucket
   description = "Имя изолированного state-бакета tier-2 этого проекта (не общий бакет tier-0)"
@@ -35,8 +40,12 @@ output "github_setup" {
     Добавить в Settings → Secrets and variables → Actions этого репозитория.
 
     Variables (не секреты, это просто идентификаторы):
-      YC_SA_ID     = ${yandex_iam_service_account.deploy.id}
-      YC_FOLDER_ID = ${yandex_resourcemanager_folder.project.id}
+      YC_SA_ID                = ${yandex_iam_service_account.deploy.id}
+      YC_FOLDER_ID            = ${yandex_resourcemanager_folder.project.id}
+      TF_VAR_frontend_address = ${var.project_domain}
+
+    TF_VAR_frontend_address обязан совпадать с project_domain: tier-2 вешает ANAME на
+    апекс подзоны, созданной здесь. Разъедутся — tier-2 не найдёт зону под свою запись.
 
     Secrets (свои для этого проекта, не общие с другими):
       TF_BACKEND_ACCESS_KEY = ${yandex_iam_service_account_static_access_key.deploy_backend_key.access_key}

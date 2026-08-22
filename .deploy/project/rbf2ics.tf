@@ -34,9 +34,13 @@ data "yandex_cm_certificate" "cert" {
   name = "yc-leito-tech"
 }
 
+# Собственная подзона проекта, заведённая tier-1 в папке проекта. Сознательно НЕ
+# корневая зона из infra: права на infra-папку в DNS-контуре у деплойного SA отсутствуют,
+# и запись ниже создаётся обычными folder-правами в своей же папке.
+# Имя должно совпадать с yandex_dns_zone.project из tier-1 ("dns-${project_key}").
+# folder_id не задаём: провайдер берёт папку из YC_FOLDER_ID, а это папка проекта.
 data "yandex_dns_zone" "dns_zone" {
-  name = "yc-leito-tech"
-  folder_id = var.defaultfolder_id
+  name = "dns-rbf2ics"
 }
 
 data "yandex_resourcemanager_folder" "folder" {
