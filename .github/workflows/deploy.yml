@@ -54,6 +54,15 @@ jobs:
       - name: terraform init
         run: terraform init
 
+      # Одноразовая миграция: удаляем устаревший managed-ресурс archive_file.content
+      # из state. Он хранил протухший source_dir (./../rbf2ics) и ломал refresh.
+      # Теперь archive_file — data-источник (data.archive_file.content), у него
+      # другой адрес в state, поэтому эта строка не трогает его.
+      # Идемпотентно: после первого успешного прогона ресурса в state уже нет.
+      # Требует только доступа к backend (AWS_* уже в env), YC-токен не нужен.
+      - name: Remove stale archive_file resource from state
+        run: terraform state rm archive_file.content || true
+
       - name: terraform plan
         if: ${{ inputs.action == 'plan' }}
         env:

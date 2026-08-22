@@ -45,7 +45,11 @@ data "yandex_resourcemanager_folder" "folder" {
 
 
 # 3. Archive code
-resource "archive_file" "content" {
+# Используем data-источник, а не managed resource: у resource "archive_file"
+# source_dir сохраняется в state, и при отсутствии content.zip в свежем
+# CI-checkout провайдер пересобирает архив по устаревшему пути из state.
+# data-источник вычисляется из конфига на каждом прогоне.
+data "archive_file" "content" {
   type = "zip"
   output_path = "${path.module}/content.zip"
   source_dir = "${path.module}/../../rbf2ics"
@@ -55,13 +59,13 @@ resource "archive_file" "content" {
 resource "yandex_function" "rbf2ics" {
   name               = "f-rbf2ics"
   description        = "https://github.com/leitosama/rbf2ics"
-  user_hash          = archive_file.content.output_sha256
+  user_hash          = data.archive_file.content.output_sha256
   runtime            = "python312"
   entrypoint         = "app.lambda_handler"
   memory             = "128"
   execution_timeout  = "10" 
   content {
-    zip_filename = archive_file.content.output_path
+    zip_filename = data.archive_file.content.output_path
   }
   log_options {
     disabled = false
