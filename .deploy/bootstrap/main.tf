@@ -20,11 +20,28 @@ resource "yandex_resourcemanager_folder_iam_member" "deploy_editor" {
   member    = "serviceAccount:${yandex_iam_service_account.deploy.id}"
 }
 
+# Публичный (анонимный) доступ к бакету через ACL public-read требует storage.admin:
+# роль storage.editor из примитивного editor выше умеет создавать бакеты, но не
+# управлять ACL и публичным доступом. Дополняет editor, не заменяет его.
+resource "yandex_resourcemanager_folder_iam_member" "deploy_storage_admin" {
+  folder_id = yandex_resourcemanager_folder.project.id
+  role      = "storage.admin"
+  member    = "serviceAccount:${yandex_iam_service_account.deploy.id}"
+}
+
 # Позволяет tier-2 читать корневую DNS-зону из infra и заводить в ней поддомены проекта.
 # Прав на запись намеренно нет.
 resource "yandex_resourcemanager_folder_iam_member" "deploy_dns_viewer" {
   folder_id = var.infra_folder_id
   role      = "dns.viewer"
+  member    = "serviceAccount:${yandex_iam_service_account.deploy.id}"
+}
+
+# Tier-2 читает TLS-сертификат из infra (data.yandex_cm_certificate.cert), чтобы
+# повесить https на бакет. Нужен доступ на чтение сертификатов в infra-папке.
+resource "yandex_resourcemanager_folder_iam_member" "deploy_cert_viewer" {
+  folder_id = var.infra_folder_id
+  role      = "certificate-manager.viewer"
   member    = "serviceAccount:${yandex_iam_service_account.deploy.id}"
 }
 
