@@ -1,84 +1,67 @@
-name: Deploy (terraform)
+name: Deploy
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
-    inputs:
-      action:
-        description: "Terraform action to run"
-        type: choice
-        options:
-          - plan
-          - apply
-        default: plan
 
 permissions:
   contents: read
   id-token: write
 
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
 jobs:
-  terraform:
+  deploy:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: .deploy/project
-    env:
-      AWS_ACCESS_KEY_ID: ${{ secrets.TF_BACKEND_ACCESS_KEY }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_BACKEND_SECRET_KEY }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-
-      - name: Get Yandex Cloud IAM token
-        id: yc-token
-        uses: docker://ghcr.io/yc-actions/yc-iam-token-fed:1.0.0
-        with:
-          yc-sa-id: ${{ secrets.YC_SA_ID }}
-
-      - name: Configure Terraform provider mirror
+      # Единый источник правды по функции и бакету. Этот же файл читает terraform
+      # через jsondecode, поэтому значения здесь и в инфраструктуре совпадают
+      # по построению — синхронизировать руками нечего.
+      - name: Read deploy config
+        id: cfg
         run: |
-          cat > ~/.terraformrc << 'EOF'
-          provider_installation {
-            network_mirror {
-              url = "https://terraform-mirror.yandexcloud.net/"
-              include = ["registry.terraform.io/*/*"]
-            }
-            direct {
-              exclude = ["registry.terraform.io/*/*"]
-            }
-          }
-          EOF
+          set -euo pipefail
+          jq -r '
+            "name=\(.name)",
+            "runtime=\(.runtime)",
+            "entrypoint=\(.entrypoint)",
+            "memory=\(.memory)",
+            "timeout=\(.timeout)",
+            "bucket=\(.bucket)"
+          ' .deploy/function.json >> "$GITHUB_OUTPUT"
 
-      - name: terraform init
-        run: terraform init
+      - name: Deploy function
+        uses: yc-actions/yc-sls-function@v4
+        with:
+          yc-sa-id: ${{ vars.YC_SA_ID }}
+          folder-id: ${{ vars.YC_FOLDER_ID }}
+          function-name: ${{ steps.cfg.outputs.name }}
+          runtime: ${{ steps.cfg.outputs.runtime }}
+          entrypoint: ${{ steps.cfg.outputs.entrypoint }}
+          # Экшен требует формат ^\d+Mb$, поэтому суффикс добавляется здесь,
+          # а в function.json память лежит числом — его же читает terraform.
+          memory: ${{ steps.cfg.outputs.memory }}Mb
+          execution-timeout: ${{ steps.cfg.outputs.timeout }}
+          source-root: rbf2ics
+          # Всё содержимое пакета, а не только *.py: рядом лежит requirements.txt,
+          # без него рантайм не поставит requests и функция упадёт на импорте.
+          include: |
+            **/*
 
-      # Одноразовая миграция: удаляем устаревший managed-ресурс archive_file.content
-      # из state. Он хранил протухший source_dir (./../rbf2ics) и ломал refresh.
-      # Теперь archive_file — data-источник (data.archive_file.content), у него
-      # другой адрес в state, поэтому эта строка не трогает его.
-      # Идемпотентно: после первого успешного прогона ресурса в state уже нет.
-      # Требует только доступа к backend (AWS_* уже в env), YC-токен не нужен.
-      - name: Remove stale archive_file resource from state
-        run: terraform state rm archive_file.content || true
-
-      - name: terraform plan
-        if: ${{ inputs.action == 'plan' }}
-        env:
-          YC_TOKEN: ${{ steps.yc-token.outputs.token }}
-          YC_CLOUD_ID: ${{ secrets.YC_CLOUD_ID }}
-          YC_FOLDER_ID: ${{ secrets.YC_FOLDER_ID }}
-          TF_VAR_defaultfolder_id: ${{ secrets.TF_VAR_defaultfolder_id }}
-          TF_VAR_frontend_address: ${{ vars.TF_VAR_frontend_address }}
-        run: terraform plan
-
-      - name: terraform apply
-        if: ${{ inputs.action == 'apply' }}
-        env:
-          YC_TOKEN: ${{ steps.yc-token.outputs.token }}
-          YC_CLOUD_ID: ${{ secrets.YC_CLOUD_ID }}
-          YC_FOLDER_ID: ${{ secrets.YC_FOLDER_ID }}
-          TF_VAR_defaultfolder_id: ${{ secrets.TF_VAR_defaultfolder_id }}
-          TF_VAR_frontend_address: ${{ vars.TF_VAR_frontend_address }}
-        run: terraform apply -auto-approve
+      - name: Upload frontend
+        uses: yc-actions/yc-obj-storage-upload@v4
+        with:
+          yc-sa-id: ${{ vars.YC_SA_ID }}
+          bucket: ${{ steps.cfg.outputs.bucket }}
+          root: ./frontend
+          include: '**/*'
+          skip-unchanged: true
+          cache-control: |
+            *.html: no-cache
+            *: public, max-age=3600

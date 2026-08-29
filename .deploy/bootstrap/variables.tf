@@ -37,3 +37,23 @@ variable "project_name" {
   type        = string
   description = "Человекочитаемое имя проекта, используется только в описаниях ресурсов"
 }
+
+variable "project_domain" {
+  type        = string
+  description = "Домен проекта — единая точка входа. На него вешается CNAME на шлюз и им же задаётся custom_domains. Без завершающей точки: точка добавляется в ресурсе записи"
+
+  validation {
+    condition     = !endswith(var.project_domain, ".")
+    error_message = "project_domain задаётся без завершающей точки (напр. app.example.com) — точка добавляется автоматически."
+  }
+}
+
+variable "infra_dns_zone_name" {
+  type        = string
+  description = "Имя корневой DNS-зоны в каталоге infra — в ней создаётся CNAME проекта"
+}
+
+variable "infra_cert_name" {
+  type        = string
+  description = "Имя сертификата в Certificate Manager в каталоге infra. Должен покрывать project_domain, иначе шлюз не примет домен"
+}

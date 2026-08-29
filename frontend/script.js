@@ -71,7 +71,7 @@ function setupEventListeners() {
         const arenaId = arenaSelect.value;
         
         if (teamId && arenaId) {
-            return `d5dud9hvel1i5o2a72rj.l3hh3szr.apigw.yandexcloud.net/rbf2ics?team_id=${teamId}&arena_id=${arenaId}`;
+            return `${window.location.host}/rbf2ics?team_id=${teamId}&arena_id=${arenaId}`;
         }
         return '';
     }

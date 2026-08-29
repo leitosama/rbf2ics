@@ -5,3 +5,7 @@ github_org        = "my-github-org"
 github_repo       = "my-project-repo"
 project_key       = "my-project"
 project_name      = "My Project"
+project_domain    = "my-project.example.com"
+
+infra_dns_zone_name = "example-com"
+infra_cert_name     = "example-com"
