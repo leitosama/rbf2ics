@@ -36,6 +36,12 @@ jobs:
             "bucket=\(.bucket)"
           ' .deploy/function.json >> "$GITHUB_OUTPUT"
 
+      - name: Get Yandex Cloud IAM token
+        id: yc-token
+        uses: docker://ghcr.io/yc-actions/yc-iam-token-fed:1.0.0
+        with:
+          yc-sa-id: ${{ secrets.YC_SA_ID }}
+
       - name: Deploy function
         uses: yc-actions/yc-sls-function@v4
         with:
