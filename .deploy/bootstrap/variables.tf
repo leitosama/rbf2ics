@@ -1,9 +1,3 @@
-variable "infra_folder_name" {
-  type        = string
-  description = "Имя папки infra из tier-0 — в ней живут shared-ресурсы (например, корневая DNS-зона)"
-  default = "default"
-}
-
 variable "wif_federation_id" {
   type        = string
   description = "ID WIF-федерации с OIDC-провайдером GitHub из tier-0"

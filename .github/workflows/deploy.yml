@@ -40,13 +40,13 @@ jobs:
         id: yc-token
         uses: docker://ghcr.io/yc-actions/yc-iam-token-fed:1.0.0
         with:
-          yc-sa-id: ${{ secrets.YC_SA_ID }}
+          yc-sa-id: ${{ vars.YC_SA_ID }}
 
       - name: Deploy function
         uses: yc-actions/yc-sls-function@v5
         with:
-          yc-sa-id: ${{ secrets.YC_SA_ID }}
-          folder-id: ${{ secrets.YC_FOLDER_ID }}
+          yc-sa-id: ${{ vars.YC_SA_ID }}
+          folder-id: ${{ vars.YC_FOLDER_ID }}
           function-name: ${{ steps.cfg.outputs.name }}
           runtime: ${{ steps.cfg.outputs.runtime }}
           entrypoint: ${{ steps.cfg.outputs.entrypoint }}
@@ -63,7 +63,7 @@ jobs:
       - name: Upload frontend
         uses: yc-actions/yc-obj-storage-upload@v4
         with:
-          yc-sa-id: ${{ secrets.YC_SA_ID }}
+          yc-sa-id: ${{ vars.YC_SA_ID }}
           bucket: ${{ steps.cfg.outputs.bucket }}
           root: ./frontend
           include: '**/*'

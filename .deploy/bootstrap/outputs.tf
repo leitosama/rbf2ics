@@ -19,20 +19,22 @@ output "project_url" {
 }
 
 output "github_setup" {
-  description = "Настройка GitHub Actions. Секретов нет: аутентификация идёт через WIF"
+  description = "Что модуль проставил в GitHub Actions и что осталось сделать человеку"
   value       = <<-EOT
-    Добавить в Settings → Secrets and variables → Actions этого репозитория.
+    Настройки Actions проставлены этим модулем, руками добавлять нечего:
 
-    Variables — ровно два значения, и только потому, что их генерирует YC,
-    а не пишет человек. Всё остальное (runtime, entrypoint, память, таймаут,
-    имена функции и бакета) лежит в .deploy/function.json и читается оттуда
-    и терраформом, и workflow — синхронизировать руками нечего:
+      Variables: YC_SA_ID     = ${yandex_iam_service_account.deploy.id}
+                 YC_FOLDER_ID = ${yandex_resourcemanager_folder.project.id}
 
-      YC_SA_ID     = ${yandex_iam_service_account.deploy.id}
-      YC_FOLDER_ID = ${yandex_resourcemanager_folder.project.id}
+    Секретов нет: аутентификация идёт через WIF, ключей не существует.
+    Всё остальное (runtime, entrypoint, память, таймаут, имена функции и
+    бакета) лежит в .deploy/function.json и читается оттуда и терраформом,
+    и workflow — синхронизировать руками нечего.
 
-    Secrets: не нужны. Если в репозитории остались TF_BACKEND_ACCESS_KEY и
-    TF_BACKEND_SECRET_KEY от прежней схемы с terraform в CI — удалить,
-    tier-2 больше не держит state.
+    Единственное, чего модуль сделать не может, — убрать чужое. Если в
+    репозитории остались YC_SA_ID/YC_FOLDER_ID в Secrets от прежней схемы
+    или TF_BACKEND_ACCESS_KEY / TF_BACKEND_SECRET_KEY от времён terraform
+    в CI — удалить руками (gh secret delete): терраформ не управляет тем,
+    чего не создавал.
   EOT
 }
