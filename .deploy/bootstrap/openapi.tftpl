@@ -28,6 +28,12 @@ paths:
   # service_account_id обязателен: бакет приватный, без него шлюз ходил бы анонимно.
   /{file+}:
     get:
+      parameters:
+        - name: file        # Имя БЕЗ плюса
+          in: path
+          required: true
+          schema:
+            type: string
       x-yc-apigateway-integration:
         type: object_storage
         bucket: ${bucket}

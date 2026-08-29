@@ -105,6 +105,7 @@ resource "yandex_function" "app" {
   memory            = local.fn.memory
   execution_timeout = local.fn.timeout
   user_hash         = data.archive_file.placeholder.output_sha256
+  folder_id         = yandex_resourcemanager_folder.project.id
 
   content {
     zip_filename = data.archive_file.placeholder.output_path
@@ -134,7 +135,7 @@ resource "yandex_api_gateway" "gw" {
     bucket        = yandex_storage_bucket.frontend.bucket
     gateway_sa_id = yandex_iam_service_account.gateway.id
   })
-
+  folder_id = yandex_resourcemanager_folder.project.id
   custom_domains {
     fqdn           = var.project_domain
     certificate_id = data.yandex_cm_certificate.cert.id
