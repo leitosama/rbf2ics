@@ -2,3 +2,4 @@ backend.hcl
 terraform.tfvars
 .terraform/
 *.tfstate*
+*.zip

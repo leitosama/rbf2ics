@@ -1,0 +1,36 @@
+openapi: 3.0.0
+info:
+  title: RBF2ICS
+  version: 1.0.0
+paths:
+  # API. Фиксированный маршрут — у него наивысший приоритет, поэтому он выигрывает
+  # у жадного маршрута ниже независимо от порядка объявления.
+  /rbf2ics:
+    get:
+      x-yc-apigateway-integration:
+        payload_format_version: '1.0'
+        function_id: ${function_id}
+        tag: $latest
+        type: cloud_functions
+
+  # Корень сайта.
+  /:
+    get:
+      x-yc-apigateway-integration:
+        type: object_storage
+        bucket: ${bucket}
+        object: index.html
+        service_account_id: ${gateway_sa_id}
+
+  # Остальная статика. Жадный параметр {file+} ловит вложенные пути целиком
+  # (css/style.css и т.п.); у жадных маршрутов наименьший приоритет в YC, так что
+  # он подхватывает только то, что не совпало выше.
+  # service_account_id обязателен: бакет приватный, без него шлюз ходил бы анонимно.
+  /{file+}:
+    get:
+      x-yc-apigateway-integration:
+        type: object_storage
+        bucket: ${bucket}
+        object: '{file}'
+        error_object: index.html
+        service_account_id: ${gateway_sa_id}

@@ -8,66 +8,31 @@ output "deploy_sa_id" {
   description = "ID деплойного сервисного аккаунта"
 }
 
-output "deploy_sa_name" {
-  value       = yandex_iam_service_account.deploy.name
-  description = "Имя деплойного сервисного аккаунта"
+output "gateway_domain" {
+  value       = yandex_api_gateway.gw.domain
+  description = "Служебный домен шлюза — цель CNAME. Генерируется при создании, поэтому запись создаётся здесь же"
 }
 
-output "project_dns_zone_id" {
-  value       = yandex_dns_zone.project.id
-  description = "ID публичной DNS-подзоны проекта — в неё tier-2 пишет записи, не имея прав на infra"
-}
-
-output "project_state_bucket" {
-  value       = yandex_storage_bucket.project_state.bucket
-  description = "Имя изолированного state-бакета tier-2 этого проекта (не общий бакет tier-0)"
-}
-
-output "deploy_sa_access_key" {
-  value       = yandex_iam_service_account_static_access_key.deploy_backend_key.access_key
-  description = "access_key деплойного SA для бэкенда tier-2 (не секрет сам по себе, но храним рядом с secret_key)"
-}
-
-output "deploy_sa_secret_key" {
-  value       = yandex_iam_service_account_static_access_key.deploy_backend_key.secret_key
-  description = "secret_key деплойного SA для бэкенда tier-2 — секрет, положить в GitHub Secrets и не светить в логах"
-  sensitive   = true
+output "project_url" {
+  value       = "https://${var.project_domain}"
+  description = "Единая точка входа проекта"
 }
 
 output "github_setup" {
-  description = "Инструкция по настройке GitHub Actions и backend.hcl tier-2 под деплойным SA"
+  description = "Настройка GitHub Actions. Секретов нет: аутентификация идёт через WIF"
   value       = <<-EOT
     Добавить в Settings → Secrets and variables → Actions этого репозитория.
 
-    Variables (не секреты, это просто идентификаторы):
-      YC_SA_ID                = ${yandex_iam_service_account.deploy.id}
-      YC_FOLDER_ID            = ${yandex_resourcemanager_folder.project.id}
-      TF_VAR_frontend_address = ${var.project_domain}
+    Variables — ровно два значения, и только потому, что их генерирует YC,
+    а не пишет человек. Всё остальное (runtime, entrypoint, память, таймаут,
+    имена функции и бакета) лежит в .deploy/function.json и читается оттуда
+    и терраформом, и workflow — синхронизировать руками нечего:
 
-    TF_VAR_frontend_address обязан совпадать с project_domain: tier-2 вешает ANAME на
-    апекс подзоны, созданной здесь. Разъедутся — tier-2 не найдёт зону под свою запись.
+      YC_SA_ID     = ${yandex_iam_service_account.deploy.id}
+      YC_FOLDER_ID = ${yandex_resourcemanager_folder.project.id}
 
-    Secrets (свои для этого проекта, не общие с другими):
-      TF_BACKEND_ACCESS_KEY = ${yandex_iam_service_account_static_access_key.deploy_backend_key.access_key}
-      TF_BACKEND_SECRET_KEY = <terraform output -raw deploy_sa_secret_key>
-
-    backend.hcl для .terraform/infra (свой бакет, не общий tier-0):
-      bucket = "${yandex_storage_bucket.project_state.bucket}"
-      key    = "infra/${var.project_key}/terraform.tfstate"
-
-    Шаг аутентификации в workflow для tier-2:
-
-      - uses: yc-actions/yc-iam-token@v1
-        id: yc-token
-        with:
-          yc-sa-id: $${{ vars.YC_SA_ID }}
-
-      - name: terraform apply
-        env:
-          YC_TOKEN: $${{ steps.yc-token.outputs.token }}
-          AWS_ACCESS_KEY_ID: $${{ secrets.TF_BACKEND_ACCESS_KEY }}
-          AWS_SECRET_ACCESS_KEY: $${{ secrets.TF_BACKEND_SECRET_KEY }}
-          TF_VAR_folder_id: $${{ vars.YC_FOLDER_ID }}
-        run: terraform -chdir=.terraform/infra apply -auto-approve
+    Secrets: не нужны. Если в репозитории остались TF_BACKEND_ACCESS_KEY и
+    TF_BACKEND_SECRET_KEY от прежней схемы с terraform в CI — удалить,
+    tier-2 больше не держит state.
   EOT
 }
