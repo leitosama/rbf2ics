@@ -1,2 +1,2 @@
-bucket = "<имя бакета из tier-0>"
-key    = "bootstrap/<project_key>/terraform.tfstate"
+bucket = "tf-t1-backend"
+key    = "rbf2ics.tfstate"

@@ -1,11 +1,7 @@
-variable "cloud_id" {
+variable "infra_folder_name" {
   type        = string
-  description = "ID облака Yandex Cloud (tier-0)"
-}
-
-variable "infra_folder_id" {
-  type        = string
-  description = "ID папки infra из tier-0 — в ней живут shared-ресурсы (например, корневая DNS-зона)"
+  description = "Имя папки infra из tier-0 — в ней живут shared-ресурсы (например, корневая DNS-зона)"
+  default = "default"
 }
 
 variable "wif_federation_id" {

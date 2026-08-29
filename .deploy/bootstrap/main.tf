@@ -6,7 +6,6 @@ locals {
 }
 
 resource "yandex_resourcemanager_folder" "project" {
-  cloud_id = var.cloud_id
   name     = var.project_key
 
   labels = {
@@ -45,9 +44,10 @@ resource "yandex_resourcemanager_folder_iam_member" "deploy_storage" {
 # CEL-условий как в GCP: external_subject_id — точное совпадение с GitHub OIDC sub-claim.
 # Здесь разрешена только ветка main; под другие ветки/окружения нужен ещё один такой ресурс
 # с другим external_subject_id.
+
 resource "yandex_iam_workload_identity_federated_credential" "deploy_github" {
   service_account_id  = yandex_iam_service_account.deploy.id
-  federation_id       = var.wif_federation_id
+  federation_id       = "${var.wif_federation_id}"
   external_subject_id = "repo:${var.github_org}/${var.github_repo}:ref:refs/heads/main"
 }
 
@@ -70,12 +70,10 @@ resource "yandex_resourcemanager_folder_iam_member" "gateway_storage_viewer" {
 # этот модуль применяет человек, у которого они уже есть.
 
 data "yandex_cm_certificate" "cert" {
-  folder_id = var.infra_folder_id
   name      = var.infra_cert_name
 }
 
 data "yandex_dns_zone" "root" {
-  folder_id = var.infra_folder_id
   name      = var.infra_dns_zone_name
 }
 

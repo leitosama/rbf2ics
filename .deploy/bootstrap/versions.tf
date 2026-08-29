@@ -7,8 +7,3 @@ terraform {
     }
   }
 }
-
-provider "yandex" {
-  cloud_id = var.cloud_id
-  # token не задаём — провайдер подхватит сессию yc CLI
-}
