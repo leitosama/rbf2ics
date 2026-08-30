@@ -65,7 +65,7 @@ resource "yandex_resourcemanager_folder_iam_member" "gateway_storage_viewer" {
   member    = "serviceAccount:${yandex_iam_service_account.gateway.id}"
 }
 
-resource "yandex_resourcemanager_folder_iam_member" "gateway_storage_viewer" {
+resource "yandex_resourcemanager_folder_iam_member" "gateway_functions_invoker" {
   folder_id = yandex_resourcemanager_folder.project.id
   role      = "serverless.functions.invoker"
   member    = "serviceAccount:${yandex_iam_service_account.gateway.id}"
