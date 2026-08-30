@@ -168,9 +168,10 @@ def lambda_handler(event, context):
 
         Return doc: https://docs.aws.amazon.com/apigateway/latest/developerguide/set-up-lambda-proxy-integrations.html
     """
-    query_params = event.get("queryStringParameters") or {}
-    team_id = int(query_params.get("team_id", HOME_TEAMID))
-    arena_id = int(query_params.get("arena_id", HOME_ARENAID))
+    # query_params = event.get("queryStringParameters") or {}
+    params = event.get("param", {})
+    team_id = int(params.get("team_id", HOME_TEAMID))
+    arena_ids = params.get("arena_ids", f"{HOME_ARENAID}.ics")
     team_info = get_team_info(team_id)
     team_games = get_team_games(team_id)
     ics_content = make_ics_calendar(team_id, arena_id, team_info, team_games)

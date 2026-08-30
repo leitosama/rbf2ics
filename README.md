@@ -2,9 +2,17 @@
 RBF calendar
 
 ## API
-https://org.infobasket.su/
-https://org.infobasket.su/Widget/TeamGames/3204?format=json
-https://org.infobasket.su/Widget/TeamInfo/3204?format=json
+https://org.infobasket.su/  
+https://org.infobasket.su/Widget/TeamGames/3204?format=json  
+https://org.infobasket.su/Widget/TeamInfo/3204?format=json  
+
+## Architecture
+```
+rbf2ics.yc.leito.tech/ # Yandex API GW
+├── / # frontend page (S3)
+├── /{file+} # files for frontend page (S3)
+└── /ics/{team_id}/{arena_ids}.ics # Yandex Serverless functions
+```
 
 ## AWS SAM
 This project contains source code and supporting files for a serverless application that you can deploy with the SAM CLI. It includes the following files and folders.
