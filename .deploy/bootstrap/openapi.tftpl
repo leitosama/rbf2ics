@@ -5,14 +5,14 @@ info:
 paths:
   # API. Фиксированный маршрут — у него наивысший приоритет, поэтому он выигрывает
   # у жадного маршрута ниже независимо от порядка объявления.
-  /ics/{user_id}/{arena_ids}:
+  /ics/{team_id}/{arena_ids}:
     parameters:
-      - name: user
+      - name: team_id
         in: path
         required: true
         schema:
           type: integer
-      - name: arenas
+      - name: arena_ids
         in: path
         required: true
         schema:
@@ -24,6 +24,7 @@ paths:
         function_id: ${function_id}
         tag: $latest
         type: cloud_functions
+        service_account_id: ${gateway_sa_id}
 
   # Корень сайта.
   /:

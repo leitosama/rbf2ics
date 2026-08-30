@@ -65,6 +65,12 @@ resource "yandex_resourcemanager_folder_iam_member" "gateway_storage_viewer" {
   member    = "serviceAccount:${yandex_iam_service_account.gateway.id}"
 }
 
+resource "yandex_resourcemanager_folder_iam_member" "gateway_storage_viewer" {
+  folder_id = yandex_resourcemanager_folder.project.id
+  role      = "serverless.functions.invoker"
+  member    = "serviceAccount:${yandex_iam_service_account.gateway.id}"
+}
+
 # --- Ресурсы из infra -------------------------------------------------------
 # Оба читаются из общего каталога. Деплойному SA права на infra не выдаются:
 # этот модуль применяет человек, у которого они уже есть.
@@ -113,7 +119,7 @@ resource "yandex_function" "app" {
 
   log_options {
     disabled  = false
-    min_level = "ERROR"
+    min_level = "LEVEL_UNSPECIFIED"
   }
 
   # Игнорируется ТОЛЬКО код — он реализация и принадлежит CI. Рантайм-поля выше
