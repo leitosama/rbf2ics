@@ -172,9 +172,11 @@ def lambda_handler(event, context):
     params = event.get("param", {})
     team_id = int(params.get("team_id", HOME_TEAMID))
     arena_ids = params.get("arena_ids", f"{HOME_ARENAID}.ics")
+    arena_ids = [int(aid) for aid in arena_ids.strip(".ics").split("_") if aid.isdigit()]
     team_info = get_team_info(team_id)
     team_games = get_team_games(team_id)
-    ics_content = make_ics_calendar(team_id, arena_id, team_info, team_games)
+    # TODO: I just use the first arena_id for now, but we can support multiple arenas in the future
+    ics_content = make_ics_calendar(team_id, arena_ids[0], team_info, team_games)
     logging.debug(ics_content)
     
 
