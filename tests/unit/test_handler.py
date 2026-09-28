@@ -22,7 +22,7 @@ def _ns(d):
 
 @pytest.fixture()
 def apigw_event():
-    """API Gateway event for GET /ics/{team_id}/{arena_ids}"""
+    """API Gateway event for GET /ics/{team_id}/{arena_ids}.ics"""
     return json.loads((ROOT / "events" / "event.json").read_text())
 
 
@@ -52,7 +52,7 @@ def _event(apigw_event, team_id, arena_ids, keys=("params", "pathParameters")):
     event.pop("pathParameters", None)
     for key in keys:
         event[key] = {"team_id": str(team_id), "arena_ids": arena_ids}
-    event["url"] = f"/ics/{team_id}/{arena_ids}"
+    event["url"] = f"/ics/{team_id}/{arena_ids}.ics"
     return event
 
 
@@ -69,7 +69,7 @@ def test_handler_returns_calendar(apigw_event, rbf_api):
 
 @pytest.mark.parametrize("keys", [("params",), ("pathParameters",)])
 def test_handler_uses_path_parameters(apigw_event, rbf_api, keys):
-    ret = app.lambda_handler(_event(apigw_event, TEAM_ID, f"{ARENA_ID}.ics", keys), None)
+    ret = app.lambda_handler(_event(apigw_event, TEAM_ID, str(ARENA_ID), keys), None)
 
     assert rbf_api == [TEAM_ID]
     assert f"{app.HOME_EMOJI} " in ret["body"]
@@ -77,13 +77,13 @@ def test_handler_uses_path_parameters(apigw_event, rbf_api, keys):
 
 
 def test_handler_uses_first_of_multiple_arenas(apigw_event, rbf_api):
-    ret = app.lambda_handler(_event(apigw_event, TEAM_ID, f"{ARENA_ID}_11926.ics"), None)
+    ret = app.lambda_handler(_event(apigw_event, TEAM_ID, f"{ARENA_ID}_11926"), None)
 
     assert "LOCATION:Test arena address" in ret["body"]
 
 
 def test_handler_other_arena_is_not_home(apigw_event, rbf_api):
-    ret = app.lambda_handler(_event(apigw_event, TEAM_ID, "11926.ics"), None)
+    ret = app.lambda_handler(_event(apigw_event, TEAM_ID, "11926"), None)
 
     assert f"{app.HOME_EMOJI} " not in ret["body"]
 

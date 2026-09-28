@@ -1,6 +1,6 @@
 {
   "url": "/ics/3204/11745.ics",
-  "path": "/ics/{team_id}/{arena_ids}",
+  "path": "/ics/{team_id}/{arena_ids}.ics",
   "httpMethod": "GET",
   "headers": {
     "Accept": "text/calendar",
@@ -50,18 +50,18 @@
   "multiValueQueryStringParameters": {},
   "pathParameters": {
     "team_id": "3204",
-    "arena_ids": "11745.ics"
+    "arena_ids": "11745"
   },
   "params": {
     "team_id": "3204",
-    "arena_ids": "11745.ics"
+    "arena_ids": "11745"
   },
   "multiValueParams": {
     "team_id": [
       "3204"
     ],
     "arena_ids": [
-      "11745.ics"
+      "11745"
     ]
   },
   "requestContext": {
