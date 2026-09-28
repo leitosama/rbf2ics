@@ -52,7 +52,7 @@ def _event(apigw_event, team_id, arena_ids, keys=("params", "pathParameters")):
     event.pop("pathParameters", None)
     for key in keys:
         event[key] = {"team_id": str(team_id), "arena_ids": arena_ids}
-    event["path"] = f"/ics/{team_id}/{arena_ids}"
+    event["url"] = f"/ics/{team_id}/{arena_ids}"
     return event
 
 

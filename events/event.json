@@ -1,6 +1,6 @@
 {
-  "resource": "/ics/{team_id}/{arena_ids}",
-  "path": "/ics/3204/11745.ics",
+  "url": "/ics/3204/11745.ics",
+  "path": "/ics/{team_id}/{arena_ids}",
   "httpMethod": "GET",
   "headers": {
     "Accept": "text/calendar",
@@ -15,16 +15,36 @@
     "X-Trace-Id": "0d7f4c7e-2b43-4a9d-8f5d-1b2a3c4d5e6f"
   },
   "multiValueHeaders": {
-    "Accept": ["text/calendar"],
-    "Accept-Encoding": ["gzip, deflate, br"],
-    "Accept-Language": ["ru"],
-    "Host": ["rbf2ics.yc.leito.tech"],
-    "If-Modified-Since": ["Tue, 22 Apr 2025 04:39:12 GMT"],
-    "User-Agent": ["iOS/20.25 dataaccessd/1.0"],
-    "X-Forwarded-For": ["127.0.0.1"],
-    "X-Real-Remote-Address": ["[127.0.0.1]:34512"],
-    "X-Request-Id": ["8c4ac5b4-3f2e-4f0b-9a3b-6d1f2e1c0a11"],
-    "X-Trace-Id": ["0d7f4c7e-2b43-4a9d-8f5d-1b2a3c4d5e6f"]
+    "Accept": [
+      "text/calendar"
+    ],
+    "Accept-Encoding": [
+      "gzip, deflate, br"
+    ],
+    "Accept-Language": [
+      "ru"
+    ],
+    "Host": [
+      "rbf2ics.yc.leito.tech"
+    ],
+    "If-Modified-Since": [
+      "Tue, 22 Apr 2025 04:39:12 GMT"
+    ],
+    "User-Agent": [
+      "iOS/20.25 dataaccessd/1.0"
+    ],
+    "X-Forwarded-For": [
+      "127.0.0.1"
+    ],
+    "X-Real-Remote-Address": [
+      "[127.0.0.1]:34512"
+    ],
+    "X-Request-Id": [
+      "8c4ac5b4-3f2e-4f0b-9a3b-6d1f2e1c0a11"
+    ],
+    "X-Trace-Id": [
+      "0d7f4c7e-2b43-4a9d-8f5d-1b2a3c4d5e6f"
+    ]
   },
   "queryStringParameters": {},
   "multiValueQueryStringParameters": {},
@@ -37,8 +57,12 @@
     "arena_ids": "11745.ics"
   },
   "multiValueParams": {
-    "team_id": ["3204"],
-    "arena_ids": ["11745.ics"]
+    "team_id": [
+      "3204"
+    ],
+    "arena_ids": [
+      "11745.ics"
+    ]
   },
   "requestContext": {
     "identity": {
@@ -48,7 +72,10 @@
     "httpMethod": "GET",
     "requestId": "8c4ac5b4-3f2e-4f0b-9a3b-6d1f2e1c0a11",
     "requestTime": "28/Sep/2026:10:00:00 +0000",
-    "requestTimeEpoch": 1790589600
+    "requestTimeEpoch": 1790589600,
+    "apiGateway": {
+      "operationContext": {}
+    }
   },
   "body": "",
   "isBase64Encoded": false
