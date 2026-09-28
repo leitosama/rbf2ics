@@ -14,6 +14,8 @@ import app  # noqa: E402
 
 TEAM_ID = 2093  # home team (TeamAid) of the first game in sample.json
 ARENA_ID = 11790  # its arena
+ARENA_NAME = "Академия баскетбола «Зенит»"  # its ArenaRu
+ARENAS_JSON = ROOT / "frontend" / "data" / "arenas.json"
 
 
 def _ns(d):
@@ -27,7 +29,19 @@ def apigw_event():
 
 
 @pytest.fixture()
-def rbf_api(monkeypatch):
+def arenas_file(tmp_path, monkeypatch):
+    """Points the function at a temporary arenas.json and resets its cache"""
+    path = tmp_path / "arenas.json"
+    path.write_text(json.dumps({"arenas": [
+        {"id": ARENA_ID, "name": "Test; arena", "address": "Street, 1", "city": "Test"},
+    ]}), encoding="utf-8")
+    monkeypatch.setattr(app, "ARENAS_PATH", str(path))
+    monkeypatch.setattr(app, "_arenas", None)
+    return path
+
+
+@pytest.fixture()
+def rbf_api(monkeypatch, arenas_file):
     """Stubs the RBF API with sample.json and records the requested team ids"""
     games = json.loads((ROOT / "sample.json").read_text(), object_hook=_ns)
     for game in games:
@@ -42,7 +56,6 @@ def rbf_api(monkeypatch):
 
     monkeypatch.setattr(app, "get_team_info", get_team_info)
     monkeypatch.setattr(app, "get_team_games", lambda team_id: games)
-    monkeypatch.setitem(app.ARENAS, ARENA_ID, {"address": "Test arena address"})
     return calls
 
 
@@ -73,13 +86,13 @@ def test_handler_uses_path_parameters(apigw_event, rbf_api, keys):
 
     assert rbf_api == [TEAM_ID]
     assert f"{app.HOME_EMOJI} " in ret["body"]
-    assert "LOCATION:Test arena address" in ret["body"]
+    assert r"LOCATION:Test\; arena\nStreet\, 1" in ret["body"]
 
 
 def test_handler_uses_first_of_multiple_arenas(apigw_event, rbf_api):
     ret = app.lambda_handler(_event(apigw_event, TEAM_ID, f"{ARENA_ID}_11926"), None)
 
-    assert "LOCATION:Test arena address" in ret["body"]
+    assert r"LOCATION:Test\; arena\nStreet\, 1" in ret["body"]
 
 
 def test_handler_other_arena_is_not_home(apigw_event, rbf_api):
@@ -96,3 +109,44 @@ def test_handler_defaults_without_params(apigw_event, rbf_api):
 
     assert ret["statusCode"] == 200
     assert rbf_api == [app.HOME_TEAMID]
+
+
+def test_handler_falls_back_to_arena_name_without_arenas_file(apigw_event, rbf_api, arenas_file):
+    arenas_file.unlink()
+
+    ret = app.lambda_handler(_event(apigw_event, TEAM_ID, str(ARENA_ID)), None)
+
+    assert ret["statusCode"] == 200
+    assert f"LOCATION:{ARENA_NAME}" in ret["body"]
+
+
+def test_arenas_load_retries_after_failure(arenas_file):
+    content = arenas_file.read_text(encoding="utf-8")
+    arenas_file.unlink()
+    assert app.get_arenas() == {}
+
+    arenas_file.write_text(content, encoding="utf-8")
+    assert list(app.get_arenas()) == [ARENA_ID]
+
+
+def test_handler_falls_back_to_arena_name_for_unknown_arena(apigw_event, rbf_api, arenas_file):
+    arenas_file.write_text(json.dumps({"arenas": []}), encoding="utf-8")
+
+    ret = app.lambda_handler(_event(apigw_event, TEAM_ID, str(ARENA_ID)), None)
+
+    assert f"LOCATION:{ARENA_NAME}" in ret["body"]
+
+
+def test_ics_escape():
+    assert app.ics_escape("a\\b;c,d\ne") == r"a\\b\;c\,d\ne"
+
+
+def test_arenas_json_is_valid():
+    arenas = json.loads(ARENAS_JSON.read_text(encoding="utf-8"))["arenas"]
+
+    ids = [arena["id"] for arena in arenas]
+    assert all(type(aid) is int for aid in ids)
+    assert len(ids) == len(set(ids))
+    for arena in arenas:
+        for field in ("name", "address", "city"):
+            assert isinstance(arena[field], str) and arena[field].strip(), (arena["id"], field)

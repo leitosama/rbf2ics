@@ -11,8 +11,20 @@ https://org.infobasket.su/Widget/TeamInfo/3204?format=json
 rbf2ics.yc.leito.tech/ # Yandex API GW
 ├── / # frontend page (S3)
 ├── /{file+} # files for frontend page (S3)
+│   └── /data/arenas.json # shared data, also mounted into the function
 └── /ics/{team_id}/{arena_ids}.ics # Yandex Serverless functions
 ```
+
+### Shared data
+`frontend/data/` is uploaded to the bucket with the frontend and holds data used by both sides.
+The frontend fetches it over HTTP; the function gets the `data/` prefix of the bucket mounted
+read-only at `/function/storage/data` (mount name is `mount` in `.deploy/function.json`).
+
+`arenas.json` — arenas with a known address (used as `LOCATION` of home games):
+```json
+{"arenas": [{"id": 11745, "name": "СКК Север", "address": "Учительская улица, 61, ...", "city": "Новосибирск"}]}
+```
+`id` is `ArenaId` from the RBF API. Values are plain text, the function escapes them for ICS.
 
 ## Development
 - `rbf2ics` - Code for the Yandex Cloud Function (entrypoint `app.lambda_handler`).
@@ -26,7 +38,7 @@ The handler is a plain Python function that takes an API Gateway event (a well-k
 
 ```bash
 rbf2ics$ pip install -r rbf2ics/requirements.txt
-rbf2ics$ cd rbf2ics && python -c "import json, app; print(app.lambda_handler(json.load(open('../events/event.json')), None)['body'])"
+rbf2ics$ cd rbf2ics && ARENAS_PATH=../frontend/data/arenas.json python -c "import json, app; print(app.lambda_handler(json.load(open('../events/event.json')), None)['body'])"
 ```
 
 ### Tests

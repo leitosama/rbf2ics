@@ -16,8 +16,8 @@ provider "github" {
 # Побочно: значения видны в логах прогонов и читаются обратно через
 # `gh variable list`, поэтому дрейф заметен, а из Secrets значение не достать.
 #
-# Здесь ровно два значения — всё остальное (runtime, entrypoint, память,
-# таймаут, имена функции и бакета) лежит в .deploy/function.json и читается
+# Здесь только сгенерированные облаком ID — всё остальное (runtime, entrypoint,
+# память, таймаут, имена функции и бакета, точка монтирования) лежит в .deploy/function.json и читается
 # оттуда и терраформом (jsondecode), и workflow (jq).
 
 resource "github_actions_variable" "yc_sa_id" {
@@ -30,4 +30,12 @@ resource "github_actions_variable" "yc_folder_id" {
   repository    = var.github_repo
   variable_name = "YC_FOLDER_ID"
   value         = yandex_resourcemanager_folder.project.id
+}
+
+# SA, под которым работает функция (сейчас это SA шлюза, см. main.tf). Переменная
+# названа по роли, а не по SA: если функции выделят свой SA, workflow не изменится.
+resource "github_actions_variable" "yc_function_sa_id" {
+  repository    = var.github_repo
+  variable_name = "YC_FUNCTION_SA_ID"
+  value         = yandex_iam_service_account.gateway.id
 }

@@ -4,6 +4,7 @@ from typing import Tuple
 from types import SimpleNamespace
 import json
 import logging
+import os
 
 import requests
 
@@ -14,22 +15,44 @@ class RequestFailedException(Exception):
         self.status_code = status_code
         self.response_text = response_text
 
-ARENAS = {
-    11745: {
-        "address": r'Север\nУчительская улица\, 61\, Новосибирск\, Новосибирская область\, Россия\, 630110'
-    },
-    11926: {
-        "address": r'ДС Динамо\nУлица Лавочкина\, 32\, Москва\, Россия\, 125581'
-    }
-}
-
 HOME_ARENAID = 11745
 HOME_TEAMID = 3204
 HOME_EMOJI = "🏠"
 VIDEO_EMOJI = "🛜"
 RBF_API_URL = "https://org.infobasket.su".rstrip("/")
+# arenas.json lives in the frontend bucket (data/arenas.json) and is mounted into the
+# function read-only. Override with ARENAS_PATH for local runs and tests.
+ARENAS_PATH = os.environ.get("ARENAS_PATH", "/function/storage/data/arenas.json")
 
 logging.basicConfig(level=logging.DEBUG)
+
+_arenas = None
+
+def get_arenas() -> dict:
+    """Arenas by id from arenas.json, read once per function instance.
+
+    A failed read is logged and not cached: the calendar still renders
+    (with arena names from the RBF API), and the next request retries.
+    """
+    global _arenas
+    if _arenas is None:
+        try:
+            with open(ARENAS_PATH, encoding="utf-8") as f:
+                _arenas = {int(arena["id"]): arena for arena in json.load(f)["arenas"]}
+        except (OSError, ValueError, KeyError, TypeError):
+            logging.exception(f"Failed to load arenas from {ARENAS_PATH}")
+            return {}
+    return _arenas
+
+def ics_escape(s: str) -> str:
+    """Escapes a TEXT value per RFC 5545 (3.3.11)"""
+    return s.replace("\\", "\\\\").replace(";", "\\;").replace(",", "\\,").replace("\n", "\\n")
+
+def get_arena_location(item) -> str:
+    arena = get_arenas().get(int(item.json.ArenaId))
+    if arena is None:
+        return ics_escape(item.json.ArenaRu or "")
+    return ics_escape(f"{arena['name']}\n{arena['address']}")
 
 def get_team_info(team_id: int) -> dict:
     team_info_r = requests.get(f"{RBF_API_URL}/Widget/TeamInfo/{team_id}?format=json")
@@ -101,7 +124,7 @@ def make_ics_event(item, team_id: int, arena_id: int) -> str:
     watch_emoji = None
     if int(item.json.ArenaId) == arena_id and int(item.json.TeamAid) == int(team_id):
         watch_emoji = HOME_EMOJI
-        location = ARENAS[arena_id]['address']
+        location = get_arena_location(item)
     else:
         watch_emoji = VIDEO_EMOJI
         if video == "Ссылка не опубликована :(":

@@ -23,13 +23,14 @@ output "github_setup" {
   value       = <<-EOT
     Настройки Actions проставлены этим модулем, руками добавлять нечего:
 
-      Variables: YC_SA_ID     = ${yandex_iam_service_account.deploy.id}
-                 YC_FOLDER_ID = ${yandex_resourcemanager_folder.project.id}
+      Variables: YC_SA_ID          = ${yandex_iam_service_account.deploy.id}
+                 YC_FOLDER_ID      = ${yandex_resourcemanager_folder.project.id}
+                 YC_FUNCTION_SA_ID = ${yandex_iam_service_account.gateway.id}
 
     Секретов нет: аутентификация идёт через WIF, ключей не существует.
     Всё остальное (runtime, entrypoint, память, таймаут, имена функции и
-    бакета) лежит в .deploy/function.json и читается оттуда и терраформом,
-    и workflow — синхронизировать руками нечего.
+    бакета, точка монтирования данных) лежит в .deploy/function.json и
+    читается оттуда и терраформом, и workflow — синхронизировать руками нечего.
 
     Единственное, чего модуль сделать не может, — убрать чужое. Если в
     репозитории остались YC_SA_ID/YC_FOLDER_ID в Secrets от прежней схемы
