@@ -5,7 +5,7 @@ info:
 paths:
   # API. Фиксированный маршрут — у него наивысший приоритет, поэтому он выигрывает
   # у жадного маршрута ниже независимо от порядка объявления.
-  /ics/{team_id}/{arena_ids}:
+  /ics/{team_id}/{arena_ids}.ics:
     parameters:
       - name: team_id
         in: path
@@ -17,7 +17,7 @@ paths:
         required: true
         schema:
           type: string
-          pattern: '^\d+(?:_\d+){0,3}\.ics$' # Формат 1_2_N.ics
+          pattern: '^\d+(?:_\d+){0,3}$' # Формат 1_2_N
     get:
       x-yc-apigateway-integration:
         payload_format_version: '1.0'

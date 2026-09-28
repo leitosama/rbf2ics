@@ -168,11 +168,12 @@ def lambda_handler(event, context):
 
         Return doc: https://yandex.cloud/en/docs/functions/concepts/function-invoke#response
     """
-    # query_params = event.get("queryStringParameters") or {}
-    params = event.get("param", {})
+    # Path parameters of /ics/{team_id}/{arena_ids}.ics. API Gateway sends them both
+    # under "params" and "pathParameters"; either may be missing in local events.
+    params = event.get("params") or event.get("pathParameters") or {}
     team_id = int(params.get("team_id", HOME_TEAMID))
-    arena_ids = params.get("arena_ids", f"{HOME_ARENAID}.ics")
-    arena_ids = [int(aid) for aid in arena_ids.strip(".ics").split("_") if aid.isdigit()]
+    arena_ids = str(params.get("arena_ids", HOME_ARENAID))
+    arena_ids = [int(aid) for aid in arena_ids.split("_") if aid.isdigit()] or [HOME_ARENAID]
     team_info = get_team_info(team_id)
     team_games = get_team_games(team_id)
     # TODO: I just use the first arena_id for now, but we can support multiple arenas in the future
