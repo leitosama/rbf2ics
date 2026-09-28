@@ -148,25 +148,25 @@ if __name__ == "__main__":
 
 
 def lambda_handler(event, context):
-    """Sample pure Lambda function
+    """Yandex Cloud Function handler
 
     Parameters
     ----------
     event: dict, required
-        API Gateway Lambda Proxy Input Format
+        Yandex API Gateway request (x-yc-apigateway-integration: cloud_functions)
 
-        Event doc: https://docs.aws.amazon.com/apigateway/latest/developerguide/set-up-lambda-proxy-integrations.html#api-gateway-simple-proxy-for-lambda-input-format
+        Event doc: https://yandex.cloud/en/docs/functions/concepts/function-invoke#request
 
     context: object, required
-        Lambda Context runtime methods and attributes
+        Function invocation context
 
-        Context doc: https://docs.aws.amazon.com/lambda/latest/dg/python-context-object.html
+        Context doc: https://yandex.cloud/en/docs/functions/lang/python/context
 
     Returns
     ------
-    API Gateway Lambda Proxy Output Format: dict
+    HTTP response: dict
 
-        Return doc: https://docs.aws.amazon.com/apigateway/latest/developerguide/set-up-lambda-proxy-integrations.html
+        Return doc: https://yandex.cloud/en/docs/functions/concepts/function-invoke#response
     """
     # query_params = event.get("queryStringParameters") or {}
     params = event.get("param", {})
