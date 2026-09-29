@@ -37,5 +37,5 @@ resource "github_actions_variable" "yc_folder_id" {
 resource "github_actions_variable" "yc_function_sa_id" {
   repository    = var.github_repo
   variable_name = "YC_FUNCTION_SA_ID"
-  value         = yandex_iam_service_account.gateway.id
+  value         = yandex_iam_service_account.sa.id
 }

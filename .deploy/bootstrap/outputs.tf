@@ -25,7 +25,7 @@ output "github_setup" {
 
       Variables: YC_SA_ID          = ${yandex_iam_service_account.deploy.id}
                  YC_FOLDER_ID      = ${yandex_resourcemanager_folder.project.id}
-                 YC_FUNCTION_SA_ID = ${yandex_iam_service_account.gateway.id}
+                 YC_FUNCTION_SA_ID = ${yandex_iam_service_account.sa.id}
 
     Секретов нет: аутентификация идёт через WIF, ключей не существует.
     Всё остальное (runtime, entrypoint, память, таймаут, имена функции и
