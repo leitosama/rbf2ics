@@ -53,22 +53,34 @@ resource "yandex_iam_workload_identity_federated_credential" "deploy_github" {
 
 # Отдельная идентичность для самого шлюза: под ней он читает приватный бакет.
 # Держим её отдельно от деплойной — у них разные задачи и разный жизненный цикл.
-resource "yandex_iam_service_account" "gateway" {
+# Под ней же работает функция: ей нужно то же чтение бакета (data/ смонтирован
+# в неё read-only), а отдельный SA в рамках этой папки ничего бы не изолировал.
+# Когда функции понадобятся свои права — выделить ей SA и поменять только здесь:
+# CI берёт ID из переменной YC_FUNCTION_SA_ID.
+resource "yandex_iam_service_account" "sa" {
   folder_id   = yandex_resourcemanager_folder.project.id
-  name        = "sa-${var.project_key}-gateway"
-  description = "SA шлюза ${var.project_name}: чтение статики из приватного бакета"
+  name        = "sa-${var.project_key}"
+  description = "SA шлюза и функции ${var.project_name}: чтение статики и данных из приватного бакета"
 }
 
-resource "yandex_resourcemanager_folder_iam_member" "gateway_storage_viewer" {
+resource "yandex_resourcemanager_folder_iam_member" "sa_storage_viewer" {
   folder_id = yandex_resourcemanager_folder.project.id
   role      = "storage.viewer"
-  member    = "serviceAccount:${yandex_iam_service_account.gateway.id}"
+  member    = "serviceAccount:${yandex_iam_service_account.sa.id}"
 }
 
-resource "yandex_resourcemanager_folder_iam_member" "gateway_functions_invoker" {
+resource "yandex_resourcemanager_folder_iam_member" "sa_functions_invoker" {
   folder_id = yandex_resourcemanager_folder.project.id
   role      = "serverless.functions.invoker"
-  member    = "serviceAccount:${yandex_iam_service_account.gateway.id}"
+  member    = "serviceAccount:${yandex_iam_service_account.sa.id}"
+}
+
+# Версию функции с привязанным SA создаёт CI, а для этого деплойному SA нужно право
+# «использовать» этот SA. Выдаётся точечно на один SA, а не на папку.
+resource "yandex_iam_service_account_iam_member" "deploy_uses_gateway_sa" {
+  service_account_id = yandex_iam_service_account.sa.id
+  role               = "iam.serviceAccounts.user"
+  member             = "serviceAccount:${yandex_iam_service_account.deploy.id}"
 }
 
 # --- Ресурсы из infra -------------------------------------------------------
@@ -104,17 +116,30 @@ data "archive_file" "placeholder" {
 }
 
 resource "yandex_function" "app" {
-  name              = local.fn.name
-  description       = "https://github.com/${var.github_org}/${var.github_repo}"
-  runtime           = local.fn.runtime
-  entrypoint        = local.fn.entrypoint
-  memory            = local.fn.memory
-  execution_timeout = local.fn.timeout
-  user_hash         = data.archive_file.placeholder.output_sha256
-  folder_id         = yandex_resourcemanager_folder.project.id
+  name               = local.fn.name
+  description        = "https://github.com/${var.github_org}/${var.github_repo}"
+  runtime            = local.fn.runtime
+  entrypoint         = local.fn.entrypoint
+  memory             = local.fn.memory
+  execution_timeout  = local.fn.timeout
+  user_hash          = data.archive_file.placeholder.output_sha256
+  folder_id          = yandex_resourcemanager_folder.project.id
+  service_account_id = yandex_iam_service_account.sa.id
 
   content {
     zip_filename = data.archive_file.placeholder.output_path
+  }
+
+  # Общие с фронтом данные (arenas.json): префикс бакета монтируется в
+  # /function/storage/<mount>. Имя точки монтирования и префикс совпадают и берутся
+  # из function.json — CI передаёт в версию то же самое, поэтому план остаётся пустым.
+  mounts {
+    name = local.fn.mount
+    mode = "ro"
+    object_storage {
+      bucket = yandex_storage_bucket.frontend.bucket
+      prefix = local.fn.mount
+    }
   }
 
   log_options {
@@ -139,7 +164,7 @@ resource "yandex_api_gateway" "gw" {
   spec = templatefile("${path.module}/openapi.tftpl", {
     function_id   = yandex_function.app.id
     bucket        = yandex_storage_bucket.frontend.bucket
-    gateway_sa_id = yandex_iam_service_account.gateway.id
+    gateway_sa_id = yandex_iam_service_account.sa.id
   })
   folder_id = yandex_resourcemanager_folder.project.id
   custom_domains {

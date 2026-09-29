@@ -4,5 +4,6 @@
   "entrypoint": "app.lambda_handler",
   "memory": 128,
   "timeout": 10,
-  "bucket": "rbf2ics-frontend"
+  "bucket": "rbf2ics-frontend",
+  "mount": "data"
 }

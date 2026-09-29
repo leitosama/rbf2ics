@@ -1,14 +1,11 @@
-// Basketball data
+// Basketball data. Arenas are shared with the backend and loaded from data/arenas.json
 const basketballData = {
     "teams": {
         "3204": "БК Новосибирск",
         "741": "ЦСКА-2"
-    },
-    "arenas": {
-        "11926": "ДС Динамо (Москва)",
-        "11745": "СКК Север (Новосибирск)"
     }
 };
+const ARENAS_URL = 'data/arenas.json';
 
 // DOM elements
 const teamSelect = document.getElementById('team-select');
@@ -25,10 +22,11 @@ const outlookCalendarBtn = document.getElementById('outlook-calendar-btn');
 // Initialize the application
 function init() {
     populateSelects();
+    populateArenas();
     setupEventListeners();
 }
 
-// Populate select dropdowns with data
+// Populate team dropdown with data
 function populateSelects() {
     // Populate teams
     Object.entries(basketballData.teams).forEach(([id, name]) => {
@@ -37,14 +35,25 @@ function populateSelects() {
         option.textContent = name;
         teamSelect.appendChild(option);
     });
+}
 
-    // Populate arenas
-    Object.entries(basketballData.arenas).forEach(([id, name]) => {
-        const option = document.createElement('option');
-        option.value = id;
-        option.textContent = name;
-        arenaSelect.appendChild(option);
-    });
+// Populate arena dropdown from the shared arenas.json
+async function populateArenas() {
+    try {
+        const response = await fetch(ARENAS_URL);
+        if (!response.ok) {
+            throw new Error(`${ARENAS_URL}: HTTP ${response.status}`);
+        }
+        const { arenas } = await response.json();
+        arenas.forEach(arena => {
+            const option = document.createElement('option');
+            option.value = arena.id;
+            option.textContent = `${arena.name} (${arena.city})`;
+            arenaSelect.appendChild(option);
+        });
+    } catch (error) {
+        console.error('Failed to load arenas:', error);
+    }
 }
 
 // Setup all event listeners

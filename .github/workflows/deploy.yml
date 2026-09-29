@@ -33,7 +33,8 @@ jobs:
             "entrypoint=\(.entrypoint)",
             "memory=\(.memory)",
             "timeout=\(.timeout)",
-            "bucket=\(.bucket)"
+            "bucket=\(.bucket)",
+            "mount=\(.mount)"
           ' .deploy/function.json >> "$GITHUB_OUTPUT"
 
       - name: Get Yandex Cloud IAM token
@@ -41,6 +42,21 @@ jobs:
         uses: docker://ghcr.io/yc-actions/yc-iam-token-fed:1.0.0
         with:
           yc-sa-id: ${{ vars.YC_SA_ID }}
+
+      # Статика и данные заливаются до функции: новая версия читает data/arenas.json
+      # из бакета и не должна стартовать раньше, чем файл там появится.
+      - name: Upload frontend
+        uses: yc-actions/yc-obj-storage-upload@v4
+        with:
+          yc-sa-id: ${{ vars.YC_SA_ID }}
+          bucket: ${{ steps.cfg.outputs.bucket }}
+          root: ./frontend
+          include: '**/*'
+          skip-unchanged: true
+          cache-control: |
+            *.html: no-cache
+            *.json: no-cache
+            *: public, max-age=3600
 
       - name: Deploy function
         uses: yc-actions/yc-sls-function@v5
@@ -59,15 +75,10 @@ jobs:
           # без него рантайм не поставит requests и функция упадёт на импорте.
           include: |
             **/*
+          # Функция читает общие с фронтом данные (data/arenas.json) из смонтированного
+          # префикса бакета: /function/storage/<mount>. Terraform задаёт то же самое
+          # из function.json, поэтому его план после выкатки остаётся пустым.
+          service-account: ${{ vars.YC_FUNCTION_SA_ID }}
+          mounts: |
+            ${{ steps.cfg.outputs.mount }}:${{ steps.cfg.outputs.bucket }}/${{ steps.cfg.outputs.mount }}:ro
 
-      - name: Upload frontend
-        uses: yc-actions/yc-obj-storage-upload@v4
-        with:
-          yc-sa-id: ${{ vars.YC_SA_ID }}
-          bucket: ${{ steps.cfg.outputs.bucket }}
-          root: ./frontend
-          include: '**/*'
-          skip-unchanged: true
-          cache-control: |
-            *.html: no-cache
-            *: public, max-age=3600
