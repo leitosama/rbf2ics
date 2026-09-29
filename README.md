@@ -2,9 +2,17 @@
 RBF calendar
 
 ## API
-https://org.infobasket.su/  
-https://org.infobasket.su/Widget/TeamGames/3204?format=json  
-https://org.infobasket.su/Widget/TeamInfo/3204?format=json  
+Swagger: https://basket.sportoteka.org/swagger/v1/swagger.json  
+Calendar of a team: https://pro2.russiabasket.org/api/abc/comps/calendar?tag=mcup,msl,vtb&season=2027&teamId=3204&calendarType=-1&maxResultCount=1000
+
+- `tag` - competitions (`LEAGUES` in `app.py`), no games are returned without it.
+- `season` - the year the season ends in, a new season starts in August (Aug 2026 - Jul 2027 is `2027`).
+- `calendarType` - `-1` for all games (see `/api/abc/comps/calendar-types`).
+- `maxResultCount` - only 10 games are returned by default.
+
+Game page: `https://russiabasket.ru/game/{game.id}?league={league.tag}`.
+Time of a game is `game.scheduledTime` (local time with UTC offset), events are in UTC.
+Games with `game.hasTime = false` have no time: they are all-day events on the date of `game.scheduledTime`.
 
 ## Architecture
 ```
@@ -12,7 +20,7 @@ rbf2ics.yc.leito.tech/ # Yandex API GW
 ├── / # frontend page (S3)
 ├── /{file+} # files for frontend page (S3)
 │   └── /data/arenas.json # shared data, also mounted into the function
-└── /ics/{team_id}/{arena_ids}.ics # Yandex Serverless functions
+└── /ics/{team_id}/{arena_ids}.ics # Yandex Serverless functions, games in any of `arena_ids` (joined with `_`) are home games
 ```
 
 ### Shared data
@@ -24,7 +32,7 @@ read-only at `/function/storage/data` (mount name is `mount` in `.deploy/functio
 ```json
 {"arenas": [{"id": 11745, "name": "СКК Север", "address": "Учительская улица, 61, ...", "city": "Новосибирск"}]}
 ```
-`id` is `ArenaId` from the RBF API. Values are plain text, the function escapes them for ICS.
+`id` is `arena.id` from the calendar API. Values are plain text, the function escapes them for ICS.
 
 ## Development
 - `rbf2ics` - Code for the Yandex Cloud Function (entrypoint `app.lambda_handler`).
