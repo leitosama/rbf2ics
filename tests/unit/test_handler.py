@@ -147,8 +147,8 @@ def test_event_with_time(games, arenas_file):
     body = app.make_ics_calendar(TEAM_ID, [ARENA_ID], games)
     event = _event_of(body, 1083466)
 
-    assert "DTSTART;TZID=Europe/Moscow:20261001T160000\n" in event
-    assert "DTEND;TZID=Europe/Moscow:20261001T180000\n" in event
+    assert "DTSTART:20261001T130000Z\n" in event
+    assert "DTEND:20261001T150000Z\n" in event
     assert f"SUMMARY:🏀 {app.VIDEO_EMOJI} Темп-СУМЗ vs Новосибирск\n" in event
     assert "Трансляция: https://embedded.slevel.ru/translations/" in event
     assert r"\nТурнир: Суперлига. Регулярный чемпионат\n" in event
@@ -156,7 +156,7 @@ def test_event_with_time(games, arenas_file):
 
 
 def test_event_without_time_uses_local_date(games, arenas_file):
-    # defaultZoneDateTime is 2026-11-01T20:00:00+03:00 - midnight in Novosibirsk
+    # scheduledTime is 2026-11-02T00:00:00+07:00 - midnight in Novosibirsk
     event = _event_of(app.make_ics_calendar(TEAM_ID, [ARENA_ID], games), 1083506)
 
     assert "DTSTART;VALUE=DATE:20261102\n" in event

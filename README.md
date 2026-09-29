@@ -11,8 +11,8 @@ Calendar of a team: https://pro2.russiabasket.org/api/abc/comps/calendar?tag=mcu
 - `maxResultCount` - only 10 games are returned by default.
 
 Game page: `https://russiabasket.ru/game/{game.id}?league={league.tag}`.
-Games with `game.hasTime = false` have no time: they are all-day events on `game.localDate`
-(`game.defaultZoneDateTime` is then local midnight converted to Moscow time, which may be the previous day).
+Time of a game is `game.scheduledTime` (local time with UTC offset), events are in UTC.
+Games with `game.hasTime = false` have no time: they are all-day events on the date of `game.scheduledTime`.
 
 ## Architecture
 ```

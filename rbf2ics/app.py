@@ -96,19 +96,17 @@ def get_video(s: str) -> Optional[str]:
     return f"https://{search.group(3)}"
 
 def get_datetime(game: dict) -> Tuple[str, str]:
-    if not game.get("hasTime"):
-        # Without time defaultZoneDateTime is local midnight converted to Moscow time,
-        # which is the previous day for the games east of Moscow, so use the local date
-        d = datetime.strptime(game["localDate"], "%d.%m.%Y").date()
-        dtstart = d.strftime('%Y%m%d')
-        dtend = (d + timedelta(days=1)).strftime('%Y%m%d')
-        return f"VALUE=DATE:{dtstart}", f"VALUE=DATE:{dtend}"
+    """DTSTART and DTEND values with their parameters, e.g. ";VALUE=DATE:20261102"
 
-    tzid = "Europe/Moscow"
-    d = datetime.fromisoformat(game["defaultZoneDateTime"]).astimezone(MOSCOW_TZ)
-    dtstart = d.strftime('%Y%m%dT%H%M%S')
-    dtend = (d + timedelta(hours=2)).strftime('%Y%m%dT%H%M%S')
-    return f"TZID={tzid}:{dtstart}", f"TZID={tzid}:{dtend}"
+    scheduledTime is the local time of the game with its UTC offset. Games without
+    time are all-day events on the local date, the others are converted to UTC.
+    """
+    d = datetime.fromisoformat(game["scheduledTime"])
+    if not game.get("hasTime"):
+        return f";VALUE=DATE:{d:%Y%m%d}", f";VALUE=DATE:{d + timedelta(days=1):%Y%m%d}"
+
+    d = d.astimezone(timezone.utc)
+    return f":{d:%Y%m%dT%H%M%SZ}", f":{d + timedelta(hours=2):%Y%m%dT%H%M%SZ}"
 
 def make_ics_headers(team_name: str, team_id: int):
     return f"BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:RBF2ICS\nNAME:БК {team_name}\nX-WR-CALNAME:БК {team_name}\nDESCRIPTION:Календарь матчей РФБ ❤️ команды. Адрес для домашней площадки работает только для БК Новосибирск\nX-WR-CALDESC:RBF2ICS\nSOURCE;VALUE=URI:https://n8n.leito.tech/webhook/rbf2ics?teamId={team_id}\nREFRESH-INTERVAL;VALUE=DURATION:PT60M\nX-PUBLISHED-TTL:PT60M\nX-WR-TIMEZONE:UTC\nMETHOD:PUBLISH\nCALSCALE:GREGORIAN\n"
@@ -155,7 +153,7 @@ def make_ics_event(item: dict, arena_ids: list, dtstamp: str) -> str:
     return (
         f"BEGIN:VEVENT\nUID:{game['id']}@rbf2ics\nDTSTAMP:{dtstamp}\nSUMMARY:{summary}\n"
         f"DESCRIPTION:{ics_escape(description)}\nLOCATION:{location}\n"
-        f"DTSTART;{dtstart}\nDTEND;{dtend}\nEND:VEVENT\n"
+        f"DTSTART{dtstart}\nDTEND{dtend}\nEND:VEVENT\n"
     )
 
 def make_ics_calendar(team_id: int, arena_ids: list, team_games: list) -> str:
