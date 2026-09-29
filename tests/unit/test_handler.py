@@ -1,8 +1,8 @@
 import copy
 import json
 import sys
+from datetime import datetime
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 
@@ -12,14 +12,10 @@ sys.path.insert(0, str(ROOT / "rbf2ics"))
 
 import app  # noqa: E402
 
-TEAM_ID = 2093  # home team (TeamAid) of the first game in sample.json
-ARENA_ID = 11790  # its arena
-ARENA_NAME = "Академия баскетбола «Зенит»"  # its ArenaRu
+# sample.json is /api/abc/comps/calendar of БК Новосибирск (3204), season 2027
+TEAM_ID = 3204
+ARENA_ID = 11926  # arena of a single game in sample.json: ЦСКА-2 - Новосибирск
 ARENAS_JSON = ROOT / "frontend" / "data" / "arenas.json"
-
-
-def _ns(d):
-    return SimpleNamespace(**d)
 
 
 @pytest.fixture()
@@ -41,21 +37,20 @@ def arenas_file(tmp_path, monkeypatch):
 
 
 @pytest.fixture()
-def rbf_api(monkeypatch, arenas_file):
-    """Stubs the RBF API with sample.json and records the requested team ids"""
-    games = json.loads((ROOT / "sample.json").read_text(), object_hook=_ns)
-    for game in games:
-        game.json = game
-    team_info = _ns({"CurrentTeamName": _ns({"CompTeamShortNameRu": "Тест"})})
-    team_info.json = team_info
+def games():
+    return json.loads((ROOT / "sample.json").read_text(encoding="utf-8"))["items"]
+
+
+@pytest.fixture()
+def rbf_api(monkeypatch, arenas_file, games):
+    """Stubs the RBF API with sample.json and records the requested (team id, season)"""
     calls = []
 
-    def get_team_info(team_id):
-        calls.append(team_id)
-        return team_info
+    def get_team_games(team_id, season):
+        calls.append((team_id, season))
+        return games
 
-    monkeypatch.setattr(app, "get_team_info", get_team_info)
-    monkeypatch.setattr(app, "get_team_games", lambda team_id: games)
+    monkeypatch.setattr(app, "get_team_games", get_team_games)
     return calls
 
 
@@ -69,6 +64,14 @@ def _event(apigw_event, team_id, arena_ids, keys=("params", "pathParameters")):
     return event
 
 
+def _events(body):
+    return body.split("BEGIN:VEVENT\n")[1:]
+
+
+def _event_of(body, game_id):
+    return next(e for e in _events(body) if f"UID:{game_id}@rbf2ics\n" in e)
+
+
 def test_handler_returns_calendar(apigw_event, rbf_api):
     ret = app.lambda_handler(apigw_event, None)
 
@@ -76,29 +79,32 @@ def test_handler_returns_calendar(apigw_event, rbf_api):
     assert ret["headers"]["Content-Type"].startswith("text/calendar")
     assert ret["body"].startswith("BEGIN:VCALENDAR")
     assert ret["body"].endswith("END:VCALENDAR")
-    assert ret["body"].count("BEGIN:VEVENT") == 34
-    assert rbf_api == [3204]
+    assert ret["body"].count("BEGIN:VEVENT") == 26
+    assert "X-WR-CALNAME:БК Новосибирск\n" in ret["body"]
+    assert rbf_api == [(3204, app.get_season())]
 
 
 @pytest.mark.parametrize("keys", [("params",), ("pathParameters",)])
 def test_handler_uses_path_parameters(apigw_event, rbf_api, keys):
     ret = app.lambda_handler(_event(apigw_event, TEAM_ID, str(ARENA_ID), keys), None)
 
-    assert rbf_api == [TEAM_ID]
-    assert f"{app.HOME_EMOJI} " in ret["body"]
-    assert r"LOCATION:Test\; arena\nStreet\, 1" in ret["body"]
+    assert rbf_api == [(TEAM_ID, app.get_season())]
+    assert ret["body"].count(f"{app.HOME_EMOJI} ") == 1
+    assert r"LOCATION:Test\; arena\nStreet\, 1" in _event_of(ret["body"], 1083577)
 
 
-def test_handler_uses_first_of_multiple_arenas(apigw_event, rbf_api):
-    ret = app.lambda_handler(_event(apigw_event, TEAM_ID, f"{ARENA_ID}_11926"), None)
+def test_handler_all_arenas_are_home(apigw_event, rbf_api):
+    ret = app.lambda_handler(_event(apigw_event, TEAM_ID, f"11745_{ARENA_ID}"), None)
 
-    assert r"LOCATION:Test\; arena\nStreet\, 1" in ret["body"]
+    # 13 games in СКК Север and 1 in ARENA_ID
+    assert ret["body"].count(f"{app.HOME_EMOJI} ") == 14
 
 
 def test_handler_other_arena_is_not_home(apigw_event, rbf_api):
-    ret = app.lambda_handler(_event(apigw_event, TEAM_ID, "11926"), None)
+    ret = app.lambda_handler(_event(apigw_event, TEAM_ID, "1"), None)
 
     assert f"{app.HOME_EMOJI} " not in ret["body"]
+    assert "LOCATION:https://russiabasket.ru/game/1083577?league=msl\n" in ret["body"]
 
 
 def test_handler_defaults_without_params(apigw_event, rbf_api):
@@ -108,7 +114,7 @@ def test_handler_defaults_without_params(apigw_event, rbf_api):
     ret = app.lambda_handler(event, None)
 
     assert ret["statusCode"] == 200
-    assert rbf_api == [app.HOME_TEAMID]
+    assert rbf_api == [(app.HOME_TEAMID, app.get_season())]
 
 
 def test_handler_falls_back_to_arena_name_without_arenas_file(apigw_event, rbf_api, arenas_file):
@@ -117,7 +123,15 @@ def test_handler_falls_back_to_arena_name_without_arenas_file(apigw_event, rbf_a
     ret = app.lambda_handler(_event(apigw_event, TEAM_ID, str(ARENA_ID)), None)
 
     assert ret["statusCode"] == 200
-    assert f"LOCATION:{ARENA_NAME}" in ret["body"]
+    assert "LOCATION:Дворец Спорта \"Динамо\"\n" in _event_of(ret["body"], 1083577)
+
+
+def test_handler_falls_back_to_arena_name_for_unknown_arena(apigw_event, rbf_api, arenas_file):
+    arenas_file.write_text(json.dumps({"arenas": []}), encoding="utf-8")
+
+    ret = app.lambda_handler(_event(apigw_event, TEAM_ID, str(ARENA_ID)), None)
+
+    assert "LOCATION:Дворец Спорта \"Динамо\"\n" in _event_of(ret["body"], 1083577)
 
 
 def test_arenas_load_retries_after_failure(arenas_file):
@@ -129,12 +143,76 @@ def test_arenas_load_retries_after_failure(arenas_file):
     assert list(app.get_arenas()) == [ARENA_ID]
 
 
-def test_handler_falls_back_to_arena_name_for_unknown_arena(apigw_event, rbf_api, arenas_file):
-    arenas_file.write_text(json.dumps({"arenas": []}), encoding="utf-8")
+def test_event_with_time(games, arenas_file):
+    body = app.make_ics_calendar(TEAM_ID, [ARENA_ID], games)
+    event = _event_of(body, 1083466)
 
-    ret = app.lambda_handler(_event(apigw_event, TEAM_ID, str(ARENA_ID)), None)
+    assert "DTSTART;TZID=Europe/Moscow:20261001T160000\n" in event
+    assert "DTEND;TZID=Europe/Moscow:20261001T180000\n" in event
+    assert f"SUMMARY:🏀 {app.VIDEO_EMOJI} Темп-СУМЗ vs Новосибирск\n" in event
+    assert "Трансляция: https://embedded.slevel.ru/translations/" in event
+    assert r"\nТурнир: Суперлига. Регулярный чемпионат\n" in event
+    assert r"\nСсылка на матч: https://russiabasket.ru/game/1083466?league=msl" in event
 
-    assert f"LOCATION:{ARENA_NAME}" in ret["body"]
+
+def test_event_without_time_uses_local_date(games, arenas_file):
+    # defaultZoneDateTime is 2026-11-01T20:00:00+03:00 - midnight in Novosibirsk
+    event = _event_of(app.make_ics_calendar(TEAM_ID, [ARENA_ID], games), 1083506)
+
+    assert "DTSTART;VALUE=DATE:20261102\n" in event
+    assert "DTEND;VALUE=DATE:20261103\n" in event
+
+
+def test_event_without_video_and_arena(games, arenas_file):
+    event = _event_of(app.make_ics_calendar(TEAM_ID, [ARENA_ID], games), 1083833)
+
+    assert r"Трансляция: Ссылка не опубликована :(\n" in event
+    assert r"\nАрена: -\n" in event
+    assert "LOCATION:https://russiabasket.ru/game/1083833?league=msl\n" in event
+
+
+def test_event_with_score(games, arenas_file):
+    game = copy.deepcopy(games[0])
+    game["game"].update(showScore=True, score="97:101")
+    game["ot"] = "2OT"
+
+    event = app.make_ics_event(game, [ARENA_ID], "20260101T000000Z")
+
+    assert f"SUMMARY:🏀 {app.VIDEO_EMOJI} Темп-СУМЗ 97:101 2OT Новосибирск\n" in event
+
+
+def test_calendar_name_falls_back_to_team_id():
+    assert "X-WR-CALNAME:БК 42\n" in app.make_ics_calendar(42, [ARENA_ID], [])
+
+
+@pytest.mark.parametrize("now, season", [
+    (datetime(2026, 7, 31), 2026),
+    (datetime(2026, 8, 1), 2027),
+    (datetime(2026, 12, 31), 2027),
+    (datetime(2027, 1, 1), 2027),
+])
+def test_get_season(now, season):
+    assert app.get_season(now) == season
+
+
+def test_get_team_games_request(monkeypatch):
+    class Response:
+        status_code = 200
+
+        def json(self):
+            return {"items": [{"game": {"id": 1}}]}
+
+    calls = []
+    monkeypatch.setattr(app.requests, "get", lambda url, params: calls.append((url, params)) or Response())
+
+    assert app.get_team_games(TEAM_ID, 2027) == [{"game": {"id": 1}}]
+    assert calls == [("https://pro2.russiabasket.org/api/abc/comps/calendar", {
+        "tag": "mcup,msl,vtb",
+        "season": 2027,
+        "teamId": TEAM_ID,
+        "calendarType": -1,
+        "maxResultCount": 1000,
+    })]
 
 
 def test_ics_escape():

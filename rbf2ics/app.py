@@ -1,7 +1,6 @@
-from datetime import datetime, timedelta, date, timezone
+from datetime import datetime, timedelta, timezone
 import re
-from typing import Tuple
-from types import SimpleNamespace
+from typing import Optional, Tuple
 import json
 import logging
 import os
@@ -19,7 +18,15 @@ HOME_ARENAID = 11745
 HOME_TEAMID = 3204
 HOME_EMOJI = "🏠"
 VIDEO_EMOJI = "🛜"
-RBF_API_URL = "https://org.infobasket.su".rstrip("/")
+RBF_API_URL = "https://pro2.russiabasket.org".rstrip("/")
+# Competition tags of the calendar request, the API returns no games without them
+LEAGUES = ["mcup", "msl", "vtb"]
+# -1 - all games: scheduled, online and finished (see /api/abc/comps/calendar-types)
+CALENDAR_TYPE = -1
+# The API returns 10 games by default
+MAX_RESULT_COUNT = 1000
+GAME_URL = "https://russiabasket.ru/game"
+MOSCOW_TZ = timezone(timedelta(hours=3))
 # arenas.json lives in the frontend bucket (data/arenas.json) and is mounted into the
 # function read-only. Override with ARENAS_PATH for local runs and tests.
 ARENAS_PATH = os.environ.get("ARENAS_PATH", "/function/storage/data/arenas.json")
@@ -48,126 +55,117 @@ def ics_escape(s: str) -> str:
     """Escapes a TEXT value per RFC 5545 (3.3.11)"""
     return s.replace("\\", "\\\\").replace(";", "\\;").replace(",", "\\,").replace("\n", "\\n")
 
-def get_arena_location(item) -> str:
-    arena = get_arenas().get(int(item.json.ArenaId))
-    if arena is None:
-        return ics_escape(item.json.ArenaRu or "")
-    return ics_escape(f"{arena['name']}\n{arena['address']}")
+def get_season(now: Optional[datetime] = None) -> int:
+    """Season is named by the year it ends in and starts in August: Aug 2026 - Jul 2027 is 2027"""
+    now = now or datetime.now(MOSCOW_TZ)
+    return now.year + 1 if now.month >= 8 else now.year
 
-def get_team_info(team_id: int) -> dict:
-    team_info_r = requests.get(f"{RBF_API_URL}/Widget/TeamInfo/{team_id}?format=json")
-    if team_info_r.status_code != 200:
-        raise RequestFailedException(
-            url=team_info_r.url,
-            status_code=team_info_r.status_code,
-            response_text=team_info_r.text
-        )
-    team_info = json.loads(team_info_r.text, object_hook=lambda d: SimpleNamespace(**d))
-    team_info.json = team_info
-    return team_info
+def get_team_games(team_id: int, season: int) -> list:
+    r = requests.get(f"{RBF_API_URL}/api/abc/comps/calendar", params={
+        "tag": ",".join(LEAGUES),
+        "season": season,
+        "teamId": team_id,
+        "calendarType": CALENDAR_TYPE,
+        "maxResultCount": MAX_RESULT_COUNT,
+    })
+    if r.status_code != 200:
+        raise RequestFailedException(url=r.url, status_code=r.status_code, response_text=r.text)
+    return r.json()["items"] or []
 
-def get_team_games(team_id: int) -> dict:
-    team_games_r = requests.get(f"{RBF_API_URL}/Widget/TeamGames/{team_id}?format=json")
-    if team_games_r.status_code != 200:
-        raise RequestFailedException(
-            url=team_games_r.url,
-            status_code=team_games_r.status_code,
-            response_text=team_games_r.text
-        )
-    team_games = json.loads(team_games_r.text, object_hook=lambda d: SimpleNamespace(**d))
+def get_team_name(team_id: int, games: list) -> str:
+    for item in games:
+        for team in (item.get("team1"), item.get("team2")):
+            if team and team.get("teamId") == team_id:
+                return team.get("shortName") or team.get("name") or str(team_id)
+    return str(team_id)
 
-    for game in team_games:
-        game.json = game
-    return team_games
+def get_arena_location(arena: dict) -> str:
+    known = get_arenas().get(int(arena["id"]))
+    if known is None:
+        return ics_escape(arena.get("name") or "")
+    return ics_escape(f"{known['name']}\n{known['address']}")
 
-def get_video(s: str) -> str:
+def get_video(s: str) -> Optional[str]:
     if not s:
-        return "-"
+        return None
     regexp = r"src=('|\")(https:|)\/\/([-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b(?:[-a-zA-Z0-9()@:%_\+.~#?&\/=]*))('|\")"
     search = re.search(regexp, s)
-    logging.debug(f"VideoID: {s}")
+    logging.debug(f"Video: {s}")
+    if search is None:
+        return None
     return f"https://{search.group(3)}"
 
-def get_datetime(item) -> Tuple[str, str]:
-    d = item.json.GameDateTimeMoscow
+def get_datetime(game: dict) -> Tuple[str, str]:
+    if not game.get("hasTime"):
+        # Without time defaultZoneDateTime is local midnight converted to Moscow time,
+        # which is the previous day for the games east of Moscow, so use the local date
+        d = datetime.strptime(game["localDate"], "%d.%m.%Y").date()
+        dtstart = d.strftime('%Y%m%d')
+        dtend = (d + timedelta(days=1)).strftime('%Y%m%d')
+        return f"VALUE=DATE:{dtstart}", f"VALUE=DATE:{dtend}"
+
     tzid = "Europe/Moscow"
-    moscow_tz = timezone(timedelta(hours=3))
-    if d is None:
-        d = item.json.GameLocalDate
-        d = date.fromtimestamp(int(d[6:-2])/1000)
-        dtstart=d.strftime('%Y%m%d')
-        dtend=(d+timedelta(days=1)).strftime('%Y%m%d')
-        event_dtstart = f"VALUE=DATE:{dtstart}"
-        event_dtend = f"VALUE=DATE:{dtend}"
-        return event_dtstart, event_dtend
-
-    d = datetime.fromtimestamp(int(d[6:-2])/1000,moscow_tz)
-
-    dtstart=d.strftime('%Y%m%dT%H%M%S')
-
-    event_dtstart = f"TZID={tzid}:{dtstart}"
-    dtend=(d+timedelta(hours=2)).strftime('%Y%m%dT%H%M%S')
-    event_dtend = f"TZID={tzid}:{dtend}"
-    return event_dtstart, event_dtend
+    d = datetime.fromisoformat(game["defaultZoneDateTime"]).astimezone(MOSCOW_TZ)
+    dtstart = d.strftime('%Y%m%dT%H%M%S')
+    dtend = (d + timedelta(hours=2)).strftime('%Y%m%dT%H%M%S')
+    return f"TZID={tzid}:{dtstart}", f"TZID={tzid}:{dtend}"
 
 def make_ics_headers(team_name: str, team_id: int):
     return f"BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:RBF2ICS\nNAME:БК {team_name}\nX-WR-CALNAME:БК {team_name}\nDESCRIPTION:Календарь матчей РФБ ❤️ команды. Адрес для домашней площадки работает только для БК Новосибирск\nX-WR-CALDESC:RBF2ICS\nSOURCE;VALUE=URI:https://n8n.leito.tech/webhook/rbf2ics?teamId={team_id}\nREFRESH-INTERVAL;VALUE=DURATION:PT60M\nX-PUBLISHED-TTL:PT60M\nX-WR-TIMEZONE:UTC\nMETHOD:PUBLISH\nCALSCALE:GREGORIAN\n"
 
-def make_ics_event(item, team_id: int, arena_id: int) -> str:
-    logging.debug(f"GameID: {item.json.GameID}")
-    link = f"https://competitions.russiabasket.ru/games/{item.json.GameID}"
-    if item.json.VideoID:
-        video = get_video(item.json.VideoID)
-    else:
-        video = "Ссылка не опубликована :("
-    logging.debug(f"VideoID: {video}")
-    watch_emoji = None
-    if int(item.json.ArenaId) == arena_id and int(item.json.TeamAid) == int(team_id):
+def make_ics_event(item: dict, arena_ids: list, dtstamp: str) -> str:
+    game = item["game"]
+    league = item.get("league") or {}
+    comp = item.get("comp") or {}
+    arena = item.get("arena")
+    team1 = (item.get("team1") or {}).get("name") or ""
+    team2 = (item.get("team2") or {}).get("name") or ""
+    logging.debug(f"GameID: {game['id']}")
+
+    link = f"{GAME_URL}/{game['id']}"
+    if league.get("tag"):
+        link += f"?league={league['tag']}"
+    video = get_video(game.get("video")) or "Ссылка не опубликована :("
+    logging.debug(f"Video: {video}")
+
+    if arena and int(arena["id"]) in arena_ids:
         watch_emoji = HOME_EMOJI
-        location = get_arena_location(item)
+        location = get_arena_location(arena)
     else:
         watch_emoji = VIDEO_EMOJI
-        if video == "Ссылка не опубликована :(":
-            location = video
-        else:
-            location = link
-
+        location = link
     logging.debug(f"Location: {location}")
-    summary = f"🏀 {watch_emoji} {item.json.ShortTeamNameAru} vs {item.json.ShortTeamNameBru}"
+
+    score = " vs "
+    if game.get("showScore") and game.get("score"):
+        score = f" {game['score']}{' ' + item['ot'] if item.get('ot') else ''} "
+    summary = ics_escape(f"🏀 {watch_emoji} {team1}{score}{team2}")
     logging.debug(f"Summary: {summary}")
-    dtstart, dtend = get_datetime(item)
+
+    dtstart, dtend = get_datetime(game)
     logging.debug(f"{dtstart} - {dtend}")
-    description = f"Трансляция: {video}\\nАрена: {item.json.ArenaRu}\\nСсылка на матч: {link}"
-    ics_content = f"BEGIN:VEVENT\nSUMMARY:{summary}\nDESCRIPTION:{description}\nLOCATION:{location}\nDTSTART;{dtstart}\nDTEND;{dtend}\nEND:VEVENT\n"
 
-    return ics_content
+    tournament = ". ".join(n for n in (league.get("name"), comp.get("name")) if n)
+    description = "\n".join([
+        f"Трансляция: {video}",
+        f"Турнир: {tournament}",
+        f"Арена: {(arena or {}).get('name') or '-'}",
+        f"Ссылка на матч: {link}",
+    ])
+    return (
+        f"BEGIN:VEVENT\nUID:{game['id']}@rbf2ics\nDTSTAMP:{dtstamp}\nSUMMARY:{summary}\n"
+        f"DESCRIPTION:{ics_escape(description)}\nLOCATION:{location}\n"
+        f"DTSTART;{dtstart}\nDTEND;{dtend}\nEND:VEVENT\n"
+    )
 
-def make_ics_calendar(team_id: int, arena_id: int, team_info: dict, team_games: dict) -> str:
-    ics_content = make_ics_headers(team_name=team_info.json.CurrentTeamName.CompTeamShortNameRu, team_id=team_id)
+def make_ics_calendar(team_id: int, arena_ids: list, team_games: list) -> str:
+    dtstamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
+    ics_content = make_ics_headers(team_name=get_team_name(team_id, team_games), team_id=team_id)
     for item in team_games:
-        ics_content += make_ics_event(item,team_id,arena_id)
+        ics_content += make_ics_event(item, arena_ids, dtstamp)
 
     ics_content += "END:VCALENDAR"
     return ics_content
-
-
-
-
-# for n8n
-# team_id = _('Webhook').item.json.query.teamId
-# team_info = _('TeamInfo').item
-# team_games = _input.all()
-# return [{'json':{'text':ics_calendar}}]
-
-if __name__ == "__main__":
-    # for local
-    team_id = HOME_TEAMID
-    arena_id = HOME_ARENAID
-    team_info = get_team_info(team_id)
-    team_games = get_team_games(team_id)
-    
-    ics_calendar = make_ics_calendar(team_id,arena_id, team_info,team_games)
-    print(ics_calendar)
 
 
 def lambda_handler(event, context):
@@ -196,13 +194,11 @@ def lambda_handler(event, context):
     params = event.get("params") or event.get("pathParameters") or {}
     team_id = int(params.get("team_id", HOME_TEAMID))
     arena_ids = str(params.get("arena_ids", HOME_ARENAID))
+    # Games in any of these arenas are home games: the user can go and watch them
     arena_ids = [int(aid) for aid in arena_ids.split("_") if aid.isdigit()] or [HOME_ARENAID]
-    team_info = get_team_info(team_id)
-    team_games = get_team_games(team_id)
-    # TODO: I just use the first arena_id for now, but we can support multiple arenas in the future
-    ics_content = make_ics_calendar(team_id, arena_ids[0], team_info, team_games)
+    team_games = get_team_games(team_id, get_season())
+    ics_content = make_ics_calendar(team_id, arena_ids, team_games)
     logging.debug(ics_content)
-    
 
     return {
         "statusCode": 200,
@@ -212,3 +208,8 @@ def lambda_handler(event, context):
         },
         "body": ics_content
     }
+
+
+if __name__ == "__main__":
+    # for local
+    print(make_ics_calendar(HOME_TEAMID, [HOME_ARENAID], get_team_games(HOME_TEAMID, get_season())))
