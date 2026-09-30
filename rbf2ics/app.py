@@ -1,10 +1,11 @@
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 import re
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Union
 import json
 import logging
 import os
 
+from icalendar import Calendar, Event, vDuration
 import requests
 
 class RequestFailedException(Exception):
@@ -19,6 +20,12 @@ HOME_TEAMID = 3204
 HOME_EMOJI = "🏠"
 VIDEO_EMOJI = "🛜"
 RBF_API_URL = "https://pro2.russiabasket.org".rstrip("/")
+# Public address of the function behind API Gateway, the SOURCE of the calendar
+BASE_URL = "https://rbf2ics.yc.leito.tech"
+PRODID = "-//leito.tech//rbf2ics//RU"
+CALENDAR_DESCRIPTION = "Календарь матчей РФБ ❤️ команды. Адрес для домашней площадки работает только для БК Новосибирск"
+REFRESH_INTERVAL = timedelta(hours=1)
+GAME_DURATION = timedelta(hours=2)
 # Competition tags of the calendar request, the API returns no games without them
 LEAGUES = ["mcup", "msl", "vtb"]
 # -1 - all games: scheduled, online and finished (see /api/abc/comps/calendar-types)
@@ -56,10 +63,6 @@ def get_arenas() -> dict:
             logging.exception(f"Failed to load arenas from {ARENAS_PATH}")
             return {}
     return _arenas
-
-def ics_escape(s: str) -> str:
-    """Escapes a TEXT value per RFC 5545 (3.3.11)"""
-    return s.replace("\\", "\\\\").replace(";", "\\;").replace(",", "\\,").replace("\n", "\\n")
 
 def get_season(now: Optional[datetime] = None) -> int:
     """Season is named by the year it ends in and starts in August: Aug 2026 - Jul 2027 is 2027"""
@@ -107,8 +110,8 @@ def get_team_name(team_id: int, games: list) -> str:
 def get_arena_location(arena: dict) -> str:
     known = get_arenas().get(int(arena["id"]))
     if known is None:
-        return ics_escape(arena.get("name") or "")
-    return ics_escape(f"{known['name']}\n{known['address']}")
+        return arena.get("name") or ""
+    return f"{known['name']}\n{known['address']}"
 
 def get_video(game: dict) -> Optional[str]:
     s = game.get("video") or ""
@@ -121,23 +124,40 @@ def get_video(game: dict) -> Optional[str]:
         return KINOPOISK_URL
     return None
 
-def get_datetime(game: dict) -> Tuple[str, str]:
-    """DTSTART and DTEND values with their parameters, e.g. ";VALUE=DATE:20261102"
+def get_datetime(game: dict) -> Tuple[Union[date, datetime], Union[date, datetime]]:
+    """DTSTART and DTEND of a game
 
     scheduledTime is the local time of the game with its UTC offset. Games without
     time are all-day events on the local date, the others are converted to UTC.
     """
     d = datetime.fromisoformat(game["scheduledTime"])
     if not game.get("hasTime"):
-        return f";VALUE=DATE:{d:%Y%m%d}", f";VALUE=DATE:{d + timedelta(days=1):%Y%m%d}"
+        return d.date(), d.date() + timedelta(days=1)
 
     d = d.astimezone(timezone.utc)
-    return f":{d:%Y%m%dT%H%M%SZ}", f":{d + timedelta(hours=2):%Y%m%dT%H%M%SZ}"
+    return d, d + GAME_DURATION
 
-def make_ics_headers(team_name: str, team_id: int):
-    return f"BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:RBF2ICS\nNAME:БК {team_name}\nX-WR-CALNAME:БК {team_name}\nDESCRIPTION:Календарь матчей РФБ ❤️ команды. Адрес для домашней площадки работает только для БК Новосибирск\nX-WR-CALDESC:RBF2ICS\nSOURCE;VALUE=URI:https://n8n.leito.tech/webhook/rbf2ics?teamId={team_id}\nREFRESH-INTERVAL;VALUE=DURATION:PT60M\nX-PUBLISHED-TTL:PT60M\nX-WR-TIMEZONE:UTC\nMETHOD:PUBLISH\nCALSCALE:GREGORIAN\n"
+def get_calendar_url(team_id: int, arena_ids: list) -> str:
+    return f"{BASE_URL}/ics/{team_id}/{'_'.join(str(aid) for aid in arena_ids)}.ics"
 
-def make_ics_event(item: dict, arena_ids: list, dtstamp: str) -> str:
+def make_calendar_headers(team_name: str, team_id: int, arena_ids: list) -> Calendar:
+    cal = Calendar()
+    cal.add("prodid", PRODID)
+    cal.add("version", "2.0")
+    cal.add("calscale", "GREGORIAN")
+    cal.add("method", "PUBLISH")
+    cal.add("name", f"БК {team_name}")
+    cal.add("x-wr-calname", f"БК {team_name}")
+    cal.add("description", CALENDAR_DESCRIPTION)
+    cal.add("x-wr-caldesc", CALENDAR_DESCRIPTION)
+    cal.add("source", get_calendar_url(team_id, arena_ids), parameters={"VALUE": "URI"})
+    cal.add("refresh-interval", REFRESH_INTERVAL, parameters={"VALUE": "DURATION"})
+    # Unknown X- properties are not typed by icalendar: a timedelta would be written as "1:00:00"
+    cal.add("x-published-ttl", vDuration(REFRESH_INTERVAL))
+    cal.add("x-wr-timezone", "UTC")
+    return cal
+
+def make_event(item: dict, arena_ids: list, dtstamp: datetime) -> Event:
     game = item["game"]
     league = item.get("league") or {}
     comp = item.get("comp") or {}
@@ -154,16 +174,15 @@ def make_ics_event(item: dict, arena_ids: list, dtstamp: str) -> str:
 
     if arena and int(arena["id"]) in arena_ids:
         watch_emoji = HOME_EMOJI
-        location = get_arena_location(arena)
     else:
         watch_emoji = VIDEO_EMOJI
-        location = link
+    location = get_arena_location(arena) if arena else ""
     logging.debug(f"Location: {location}")
 
     score = " vs "
     if game.get("showScore") and game.get("score"):
         score = f" {game['score']}{' ' + item['ot'] if item.get('ot') else ''} "
-    summary = ics_escape(f"🏀 {watch_emoji} {team1}{score}{team2}")
+    summary = f"🏀 {watch_emoji} {team1}{score}{team2}"
     logging.debug(f"Summary: {summary}")
 
     dtstart, dtend = get_datetime(game)
@@ -176,20 +195,28 @@ def make_ics_event(item: dict, arena_ids: list, dtstamp: str) -> str:
         f"Арена: {(arena or {}).get('name') or '-'}",
         f"Ссылка на матч: {link}",
     ])
-    return (
-        f"BEGIN:VEVENT\nUID:{game['id']}@rbf2ics\nDTSTAMP:{dtstamp}\nSUMMARY:{summary}\n"
-        f"DESCRIPTION:{ics_escape(description)}\nLOCATION:{location}\n"
-        f"DTSTART{dtstart}\nDTEND{dtend}\nEND:VEVENT\n"
-    )
+
+    event = Event()
+    event.add("uid", f"{game['id']}@rbf2ics")
+    event.add("dtstamp", dtstamp)
+    event.add("summary", summary)
+    event.add("description", description)
+    if location:
+        event.add("location", location)
+    event.add("url", link)
+    event.add("dtstart", dtstart)
+    event.add("dtend", dtend)
+    return event
+
+def make_calendar(team_id: int, arena_ids: list, team_games: list) -> Calendar:
+    dtstamp = datetime.now(timezone.utc).replace(microsecond=0)
+    cal = make_calendar_headers(get_team_name(team_id, team_games), team_id, arena_ids)
+    for item in team_games:
+        cal.add_component(make_event(item, arena_ids, dtstamp))
+    return cal
 
 def make_ics_calendar(team_id: int, arena_ids: list, team_games: list) -> str:
-    dtstamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
-    ics_content = make_ics_headers(team_name=get_team_name(team_id, team_games), team_id=team_id)
-    for item in team_games:
-        ics_content += make_ics_event(item, arena_ids, dtstamp)
-
-    ics_content += "END:VCALENDAR"
-    return ics_content
+    return make_calendar(team_id, arena_ids, team_games).to_ical().decode("utf-8")
 
 
 def lambda_handler(event, context):

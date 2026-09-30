@@ -1,9 +1,10 @@
 import copy
 import json
 import sys
-from datetime import datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
 
+from icalendar import Calendar
 import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -65,11 +66,23 @@ def _event(apigw_event, team_id, arena_ids, keys=("params", "pathParameters")):
 
 
 def _events(body):
-    return body.split("BEGIN:VEVENT\n")[1:]
+    return Calendar.from_ical(body).walk("VEVENT")
 
 
 def _event_of(body, game_id):
-    return next(e for e in _events(body) if f"UID:{game_id}@rbf2ics\n" in e)
+    return next(e for e in _events(body) if e["UID"] == f"{game_id}@rbf2ics")
+
+
+def _summaries(body):
+    return [str(e["SUMMARY"]) for e in _events(body)]
+
+
+def _home_count(body):
+    return sum(s.startswith(f"🏀 {app.HOME_EMOJI} ") for s in _summaries(body))
+
+
+def _make_event(item):
+    return app.make_event(item, [ARENA_ID], datetime(2026, 1, 1, tzinfo=timezone.utc))
 
 
 def test_handler_returns_calendar(apigw_event, rbf_api):
@@ -77,11 +90,27 @@ def test_handler_returns_calendar(apigw_event, rbf_api):
 
     assert ret["statusCode"] == 200
     assert ret["headers"]["Content-Type"].startswith("text/calendar")
-    assert ret["body"].startswith("BEGIN:VCALENDAR")
-    assert ret["body"].endswith("END:VCALENDAR")
-    assert ret["body"].count("BEGIN:VEVENT") == 26
-    assert "X-WR-CALNAME:БК Новосибирск\n" in ret["body"]
+    assert ret["body"].startswith("BEGIN:VCALENDAR\r\n")
+    assert ret["body"].endswith("END:VCALENDAR\r\n")
+    cal = Calendar.from_ical(ret["body"])
+    assert len(cal.walk("VEVENT")) == 26
+    assert cal["X-WR-CALNAME"] == cal["NAME"] == "БК Новосибирск"
+    assert cal["SOURCE"] == "https://rbf2ics.yc.leito.tech/ics/3204/11745.ics"
     assert rbf_api == [(3204, app.get_season())]
+
+
+def test_calendar_is_rfc5545_content(apigw_event, rbf_api):
+    body = app.lambda_handler(apigw_event, None)["body"]
+
+    lines = body.split("\r\n")
+    assert "\n" not in "".join(lines)
+    assert all(len(line.encode("utf-8")) <= 75 for line in lines)
+    assert "PRODID:-//leito.tech//rbf2ics//RU" in lines
+    assert "REFRESH-INTERVAL;VALUE=DURATION:PT1H" in lines
+    assert "SOURCE;VALUE=URI:https://rbf2ics.yc.leito.tech/ics/3204/11745.ics" in lines
+    assert "X-PUBLISHED-TTL:PT1H" in lines
+    cal = Calendar.from_ical(body)
+    assert cal["DESCRIPTION"] == cal["X-WR-CALDESC"] == app.CALENDAR_DESCRIPTION
 
 
 @pytest.mark.parametrize("keys", [("params",), ("pathParameters",)])
@@ -89,22 +118,28 @@ def test_handler_uses_path_parameters(apigw_event, rbf_api, keys):
     ret = app.lambda_handler(_event(apigw_event, TEAM_ID, str(ARENA_ID), keys), None)
 
     assert rbf_api == [(TEAM_ID, app.get_season())]
-    assert ret["body"].count(f"{app.HOME_EMOJI} ") == 1
-    assert r"LOCATION:Test\; arena\nStreet\, 1" in _event_of(ret["body"], 1083577)
+    assert _home_count(ret["body"]) == 1
+    assert r"LOCATION:Test\; arena\nStreet\, 1" in ret["body"]
+    assert _event_of(ret["body"], 1083577)["LOCATION"] == "Test; arena\nStreet, 1"
+    assert Calendar.from_ical(ret["body"])["SOURCE"] == f"{app.BASE_URL}/ics/{TEAM_ID}/{ARENA_ID}.ics"
 
 
 def test_handler_all_arenas_are_home(apigw_event, rbf_api):
     ret = app.lambda_handler(_event(apigw_event, TEAM_ID, f"11745_{ARENA_ID}"), None)
 
     # 13 games in СКК Север and 1 in ARENA_ID
-    assert ret["body"].count(f"{app.HOME_EMOJI} ") == 14
+    assert _home_count(ret["body"]) == 14
+    assert Calendar.from_ical(ret["body"])["SOURCE"] == f"{app.BASE_URL}/ics/{TEAM_ID}/11745_{ARENA_ID}.ics"
 
 
 def test_handler_other_arena_is_not_home(apigw_event, rbf_api):
     ret = app.lambda_handler(_event(apigw_event, TEAM_ID, "1"), None)
 
-    assert f"{app.HOME_EMOJI} " not in ret["body"]
-    assert "LOCATION:https://russiabasket.ru/game/1083577?league=msl\n" in ret["body"]
+    assert _home_count(ret["body"]) == 0
+    # A known arena keeps its address in away games too
+    event = _event_of(ret["body"], 1083577)
+    assert event["LOCATION"] == "Test; arena\nStreet, 1"
+    assert event["URL"] == "https://russiabasket.ru/game/1083577?league=msl"
 
 
 def test_handler_defaults_without_params(apigw_event, rbf_api):
@@ -123,7 +158,7 @@ def test_handler_falls_back_to_arena_name_without_arenas_file(apigw_event, rbf_a
     ret = app.lambda_handler(_event(apigw_event, TEAM_ID, str(ARENA_ID)), None)
 
     assert ret["statusCode"] == 200
-    assert "LOCATION:Дворец Спорта \"Динамо\"\n" in _event_of(ret["body"], 1083577)
+    assert _event_of(ret["body"], 1083577)["LOCATION"] == "Дворец Спорта \"Динамо\""
 
 
 def test_handler_falls_back_to_arena_name_for_unknown_arena(apigw_event, rbf_api, arenas_file):
@@ -131,7 +166,7 @@ def test_handler_falls_back_to_arena_name_for_unknown_arena(apigw_event, rbf_api
 
     ret = app.lambda_handler(_event(apigw_event, TEAM_ID, str(ARENA_ID)), None)
 
-    assert "LOCATION:Дворец Спорта \"Динамо\"\n" in _event_of(ret["body"], 1083577)
+    assert _event_of(ret["body"], 1083577)["LOCATION"] == "Дворец Спорта \"Динамо\""
 
 
 def test_arenas_load_retries_after_failure(arenas_file):
@@ -147,46 +182,53 @@ def test_event_with_time(games, arenas_file):
     body = app.make_ics_calendar(TEAM_ID, [ARENA_ID], games)
     event = _event_of(body, 1083466)
 
-    assert "DTSTART:20261001T130000Z\n" in event
-    assert "DTEND:20261001T150000Z\n" in event
-    assert f"SUMMARY:🏀 {app.VIDEO_EMOJI} Темп-СУМЗ vs Новосибирск\n" in event
-    assert "Трансляция: https://embedded.slevel.ru/translations/" in event
-    assert r"\nТурнир: Суперлига. Регулярный чемпионат\n" in event
-    assert r"\nСсылка на матч: https://russiabasket.ru/game/1083466?league=msl" in event
+    assert event.decoded("DTSTART") == datetime(2026, 10, 1, 13, tzinfo=timezone.utc)
+    assert event.decoded("DTEND") == datetime(2026, 10, 1, 15, tzinfo=timezone.utc)
+    assert "DTSTART:20261001T130000Z" in body.split("\r\n")
+    assert event["SUMMARY"] == f"🏀 {app.VIDEO_EMOJI} Темп-СУМЗ vs Новосибирск"
+    assert event["LOCATION"] == "СК БК \"Темп-СУМЗ\""
+    assert event["URL"] == "https://russiabasket.ru/game/1083466?league=msl"
+    description = str(event["DESCRIPTION"])
+    assert description.startswith("Трансляция: https://embedded.slevel.ru/translations/")
+    assert "\nТурнир: Суперлига. Регулярный чемпионат\n" in description
+    assert description.endswith("\nСсылка на матч: https://russiabasket.ru/game/1083466?league=msl")
 
 
 def test_event_without_time_uses_local_date(games, arenas_file):
     # scheduledTime is 2026-11-02T00:00:00+07:00 - midnight in Novosibirsk
-    event = _event_of(app.make_ics_calendar(TEAM_ID, [ARENA_ID], games), 1083506)
+    body = app.make_ics_calendar(TEAM_ID, [ARENA_ID], games)
+    event = _event_of(body, 1083506)
 
-    assert "DTSTART;VALUE=DATE:20261102\n" in event
-    assert "DTEND;VALUE=DATE:20261103\n" in event
+    assert event.decoded("DTSTART") == date(2026, 11, 2)
+    assert event.decoded("DTEND") == date(2026, 11, 3)
+    assert "DTSTART;VALUE=DATE:20261102" in body.split("\r\n")
 
 
 def test_event_without_video_and_arena(games, arenas_file):
     event = _event_of(app.make_ics_calendar(TEAM_ID, [ARENA_ID], games), 1083833)
 
-    assert r"Трансляция: Ссылка не опубликована :(\n" in event
-    assert r"\nАрена: -\n" in event
-    assert "LOCATION:https://russiabasket.ru/game/1083833?league=msl\n" in event
+    assert "Трансляция: Ссылка не опубликована :(\n" in event["DESCRIPTION"]
+    assert "\nАрена: -\n" in event["DESCRIPTION"]
+    assert "LOCATION" not in event
+    assert event["URL"] == "https://russiabasket.ru/game/1083833?league=msl"
 
 
 def test_event_on_kinopoisk_links_to_league_page(games, arenas_file):
     game = copy.deepcopy(games[0])
     game["game"].update(video=None, tv="Кинопоиск (🎙️: Дмитрий Колинов)")
 
-    event = app.make_ics_event(game, [ARENA_ID], "20260101T000000Z")
+    event = _make_event(game)
 
-    assert f"Трансляция: {app.KINOPOISK_URL}" in event
+    assert f"Трансляция: {app.KINOPOISK_URL}\n" in event["DESCRIPTION"]
 
 
 def test_event_video_wins_over_kinopoisk(games, arenas_file):
     game = copy.deepcopy(games[0])
     game["game"].update(tv="Кинопоиск")
 
-    event = app.make_ics_event(game, [ARENA_ID], "20260101T000000Z")
+    event = _make_event(game)
 
-    assert "Трансляция: https://embedded.slevel.ru/translations/" in event
+    assert event["DESCRIPTION"].startswith("Трансляция: https://embedded.slevel.ru/translations/")
 
 
 def test_event_with_score(games, arenas_file):
@@ -194,17 +236,18 @@ def test_event_with_score(games, arenas_file):
     game["game"].update(showScore=True, score="97:101")
     game["ot"] = "2OT"
 
-    event = app.make_ics_event(game, [ARENA_ID], "20260101T000000Z")
+    event = _make_event(game)
 
-    assert f"SUMMARY:🏀 {app.VIDEO_EMOJI} Темп-СУМЗ 97:101 2OT Новосибирск\n" in event
+    assert event["SUMMARY"] == f"🏀 {app.VIDEO_EMOJI} Темп-СУМЗ 97:101 2OT Новосибирск"
 
 
 def test_summary_has_region_of_ambiguous_team(games, arenas_file):
     body = app.make_ics_calendar(TEAM_ID, [ARENA_ID], games)
 
-    assert f"SUMMARY:🏀 {app.VIDEO_EMOJI} Динамо (Уфа) vs Новосибирск\n" in body
-    assert f"SUMMARY:🏀 {app.VIDEO_EMOJI} Динамо (Грозный) vs Новосибирск\n" in body
-    assert "ЦСКА-2 (" not in body
+    summaries = _summaries(body)
+    assert f"🏀 {app.VIDEO_EMOJI} Динамо (Уфа) vs Новосибирск" in summaries
+    assert f"🏀 {app.VIDEO_EMOJI} Динамо (Грозный) vs Новосибирск" in summaries
+    assert not any("ЦСКА-2 (" in s for s in summaries)
 
 
 @pytest.mark.parametrize("team, name", [
@@ -224,11 +267,11 @@ def test_calendar_name_has_team_region(games):
             if item[key]["teamId"] == TEAM_ID:
                 item[key]["regionName"] = "Бердск"
 
-    assert "X-WR-CALNAME:БК Новосибирск (Бердск)\n" in app.make_ics_calendar(TEAM_ID, [ARENA_ID], games)
+    assert app.make_calendar(TEAM_ID, [ARENA_ID], games)["X-WR-CALNAME"] == "БК Новосибирск (Бердск)"
 
 
 def test_calendar_name_falls_back_to_team_id():
-    assert "X-WR-CALNAME:БК 42\n" in app.make_ics_calendar(42, [ARENA_ID], [])
+    assert app.make_calendar(42, [ARENA_ID], [])["X-WR-CALNAME"] == "БК 42"
 
 
 @pytest.mark.parametrize("now, season", [
@@ -259,10 +302,6 @@ def test_get_team_games_request(monkeypatch):
         "calendarType": -1,
         "maxResultCount": 1000,
     })]
-
-
-def test_ics_escape():
-    assert app.ics_escape("a\\b;c,d\ne") == r"a\\b\;c\,d\ne"
 
 
 def test_arenas_json_is_valid():
