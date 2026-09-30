@@ -19,6 +19,9 @@ The calendar is built with [icalendar](https://icalendar.readthedocs.io/) (`make
 which takes care of RFC 5545 serialization: CRLF line endings, line folding and escaping of text values.
 
 - `SOURCE` is the address of the calendar itself: `https://rbf2ics.yc.leito.tech/ics/{team_id}/{arena_ids}.ics`.
+- Home games (in one of `arena_ids`) are busy (`TRANSP:OPAQUE`), online games are free (`TRANSP:TRANSPARENT`).
+- `CATEGORIES` of an event are `Дома`/`Онлайн` and the league name.
+- `COLOR` (RFC 7986) and `X-APPLE-CALENDAR-COLOR` color the calendar in clients that support them (not Google).
 - `URL` of an event is the broadcast (the game page when there is none), `LOCATION` is the arena (with its address when it is in `arenas.json`).
 
 ## Architecture

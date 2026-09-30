@@ -26,6 +26,12 @@ PRODID = "-//leito.tech//rbf2ics//RU"
 CALENDAR_DESCRIPTION = "Календарь матчей РФБ ❤️ команды. Адрес для домашней площадки работает только для БК Новосибирск"
 REFRESH_INTERVAL = timedelta(hours=1)
 GAME_DURATION = timedelta(hours=2)
+HOME_CATEGORY = "Дома"
+ONLINE_CATEGORY = "Онлайн"
+# Calendar color: COLOR (RFC 7986) takes a CSS3 color name, Apple reads its own hex property.
+# Google ignores both.
+CALENDAR_COLOR = "darkorange"
+APPLE_CALENDAR_COLOR = "#FF8C00"
 # Competition tags of the calendar request, the API returns no games without them
 LEAGUES = ["mcup", "msl", "vtb"]
 # -1 - all games: scheduled, online and finished (see /api/abc/comps/calendar-types)
@@ -155,6 +161,8 @@ def make_calendar_headers(team_name: str, team_id: int, arena_ids: list) -> Cale
     # Unknown X- properties are not typed by icalendar: a timedelta would be written as "1:00:00"
     cal.add("x-published-ttl", vDuration(REFRESH_INTERVAL))
     cal.add("x-wr-timezone", "UTC")
+    cal.add("color", CALENDAR_COLOR)
+    cal.add("x-apple-calendar-color", APPLE_CALENDAR_COLOR)
     return cal
 
 def make_event(item: dict, arena_ids: list, dtstamp: datetime) -> Event:
@@ -172,10 +180,9 @@ def make_event(item: dict, arena_ids: list, dtstamp: datetime) -> Event:
     video = get_video(game)
     logging.debug(f"Video: {video}")
 
-    if arena and int(arena["id"]) in arena_ids:
-        watch_emoji = HOME_EMOJI
-    else:
-        watch_emoji = VIDEO_EMOJI
+    # Home games are the ones the user can go to: they block time, online games don't
+    is_home = bool(arena) and int(arena["id"]) in arena_ids
+    watch_emoji = HOME_EMOJI if is_home else VIDEO_EMOJI
     location = get_arena_location(arena) if arena else ""
     logging.debug(f"Location: {location}")
 
@@ -207,6 +214,11 @@ def make_event(item: dict, arena_ids: list, dtstamp: datetime) -> Event:
     event.add("url", video or link)
     event.add("dtstart", dtstart)
     event.add("dtend", dtend)
+    event.add("transp", "OPAQUE" if is_home else "TRANSPARENT")
+    categories = [HOME_CATEGORY if is_home else ONLINE_CATEGORY]
+    if league.get("name"):
+        categories.append(league["name"])
+    event.add("categories", categories)
     return event
 
 def make_calendar(team_id: int, arena_ids: list, team_games: list) -> Calendar:

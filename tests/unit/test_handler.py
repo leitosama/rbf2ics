@@ -233,6 +233,40 @@ def test_event_video_wins_over_kinopoisk(games, arenas_file):
     assert event["DESCRIPTION"].startswith("Трансляция: https://embedded.slevel.ru/translations/")
 
 
+def test_home_event_is_busy(games, arenas_file):
+    event = _event_of(app.make_ics_calendar(TEAM_ID, [ARENA_ID], games), 1083577)
+
+    assert event["SUMMARY"].startswith(f"🏀 {app.HOME_EMOJI} ")
+    assert event["TRANSP"] == "OPAQUE"
+    assert event["CATEGORIES"].cats == [app.HOME_CATEGORY, "Суперлига"]
+
+
+def test_online_event_is_free(games, arenas_file):
+    event = _event_of(app.make_ics_calendar(TEAM_ID, [ARENA_ID], games), 1083466)
+
+    assert event["SUMMARY"].startswith(f"🏀 {app.VIDEO_EMOJI} ")
+    assert event["TRANSP"] == "TRANSPARENT"
+    assert event["CATEGORIES"].cats == [app.ONLINE_CATEGORY, "Суперлига"]
+
+
+def test_event_without_arena_and_league_is_online(games, arenas_file):
+    game = copy.deepcopy(games[0])
+    game["arena"] = None
+    game["league"] = None
+
+    event = _make_event(game)
+
+    assert event["TRANSP"] == "TRANSPARENT"
+    assert event["CATEGORIES"].cats == [app.ONLINE_CATEGORY]
+
+
+def test_calendar_color():
+    cal = app.make_calendar(TEAM_ID, [ARENA_ID], [])
+
+    assert cal["COLOR"] == app.CALENDAR_COLOR
+    assert cal["X-APPLE-CALENDAR-COLOR"] == app.APPLE_CALENDAR_COLOR
+
+
 def test_event_with_score(games, arenas_file):
     game = copy.deepcopy(games[0])
     game["game"].update(showScore=True, score="97:101")
