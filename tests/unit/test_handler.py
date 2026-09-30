@@ -171,6 +171,24 @@ def test_event_without_video_and_arena(games, arenas_file):
     assert "LOCATION:https://russiabasket.ru/game/1083833?league=msl\n" in event
 
 
+def test_event_on_kinopoisk_links_to_league_page(games, arenas_file):
+    game = copy.deepcopy(games[0])
+    game["game"].update(video=None, tv="Кинопоиск (🎙️: Дмитрий Колинов)")
+
+    event = app.make_ics_event(game, [ARENA_ID], "20260101T000000Z")
+
+    assert f"Трансляция: {app.KINOPOISK_URL}" in event
+
+
+def test_event_video_wins_over_kinopoisk(games, arenas_file):
+    game = copy.deepcopy(games[0])
+    game["game"].update(tv="Кинопоиск")
+
+    event = app.make_ics_event(game, [ARENA_ID], "20260101T000000Z")
+
+    assert "Трансляция: https://embedded.slevel.ru/translations/" in event
+
+
 def test_event_with_score(games, arenas_file):
     game = copy.deepcopy(games[0])
     game["game"].update(showScore=True, score="97:101")

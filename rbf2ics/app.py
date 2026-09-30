@@ -25,6 +25,10 @@ LEAGUES = ["mcup", "msl", "vtb"]
 CALENDAR_TYPE = -1
 # The API returns 10 games by default
 MAX_RESULT_COUNT = 1000
+# VTB United League games are broadcast on Kinopoisk, which has no per-game links:
+# game["tv"] looks like "Кинопоиск (🎙️: Дмитрий Колинов)", so it gets the league page
+KINOPOISK_NAME = "кинопоиск"
+KINOPOISK_URL = "https://hd.kinopoisk.ru/sport/competition/37370/"
 GAME_URL = "https://russiabasket.ru/game"
 # Names shared by several teams of the leagues: in event summaries they get the team region
 AMBIGUOUS_TEAM_NAMES = {"Динамо"}
@@ -106,15 +110,16 @@ def get_arena_location(arena: dict) -> str:
         return ics_escape(arena.get("name") or "")
     return ics_escape(f"{known['name']}\n{known['address']}")
 
-def get_video(s: str) -> Optional[str]:
-    if not s:
-        return None
+def get_video(game: dict) -> Optional[str]:
+    s = game.get("video") or ""
     regexp = r"src=('|\")(https:|)\/\/([-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b(?:[-a-zA-Z0-9()@:%_\+.~#?&\/=]*))('|\")"
     search = re.search(regexp, s)
     logging.debug(f"Video: {s}")
-    if search is None:
-        return None
-    return f"https://{search.group(3)}"
+    if search is not None:
+        return f"https://{search.group(3)}"
+    if KINOPOISK_NAME in (game.get("tv") or "").lower():
+        return KINOPOISK_URL
+    return None
 
 def get_datetime(game: dict) -> Tuple[str, str]:
     """DTSTART and DTEND values with their parameters, e.g. ";VALUE=DATE:20261102"
@@ -144,7 +149,7 @@ def make_ics_event(item: dict, arena_ids: list, dtstamp: str) -> str:
     link = f"{GAME_URL}/{game['id']}"
     if league.get("tag"):
         link += f"?league={league['tag']}"
-    video = get_video(game.get("video")) or "Ссылка не опубликована :("
+    video = get_video(game) or "Ссылка не опубликована :("
     logging.debug(f"Video: {video}")
 
     if arena and int(arena["id"]) in arena_ids:
