@@ -1,1 +1,2 @@
 requests
+icalendar>=7,<8

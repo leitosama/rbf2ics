@@ -14,6 +14,13 @@ Game page: `https://russiabasket.ru/game/{game.id}?league={league.tag}`.
 Time of a game is `game.scheduledTime` (local time with UTC offset), events are in UTC.
 Games with `game.hasTime = false` have no time: they are all-day events on the date of `game.scheduledTime`.
 
+## Calendar
+The calendar is built with [icalendar](https://icalendar.readthedocs.io/) (`make_calendar` in `app.py`),
+which takes care of RFC 5545 serialization: CRLF line endings, line folding and escaping of text values.
+
+- `SOURCE` is the address of the calendar itself: `https://rbf2ics.yc.leito.tech/ics/{team_id}/{arena_ids}.ics`.
+- `URL` of an event is the game page, `LOCATION` is the arena (with its address when it is in `arenas.json`).
+
 ## Architecture
 ```
 rbf2ics.yc.leito.tech/ # Yandex API GW
