@@ -26,6 +26,8 @@ CALENDAR_TYPE = -1
 # The API returns 10 games by default
 MAX_RESULT_COUNT = 1000
 GAME_URL = "https://russiabasket.ru/game"
+# Names shared by several teams of the leagues: in event summaries they get the team region
+AMBIGUOUS_TEAM_NAMES = {"Динамо"}
 MOSCOW_TZ = timezone(timedelta(hours=3))
 # arenas.json lives in the frontend bucket (data/arenas.json) and is mounted into the
 # function read-only. Override with ARENAS_PATH for local runs and tests.
@@ -72,11 +74,30 @@ def get_team_games(team_id: int, season: int) -> list:
         raise RequestFailedException(url=r.url, status_code=r.status_code, response_text=r.text)
     return r.json()["items"] or []
 
+def get_full_team_name(team: Optional[dict]) -> str:
+    """Team name with its region, e.g. "Динамо (Уфа)"
+
+    The API has no full team name: name and shortName are the same ("Динамо"),
+    so teams with the same name are told apart by their region.
+    """
+    team = team or {}
+    name = team.get("name") or team.get("shortName") or ""
+    region = team.get("regionName")
+    if name and region and region != name:
+        return f"{name} ({region})"
+    return name
+
+def get_summary_team_name(team: Optional[dict]) -> str:
+    """Team name for event summaries, with the region only for ambiguous names"""
+    team = team or {}
+    name = team.get("name") or team.get("shortName") or ""
+    return get_full_team_name(team) if name in AMBIGUOUS_TEAM_NAMES else name
+
 def get_team_name(team_id: int, games: list) -> str:
     for item in games:
         for team in (item.get("team1"), item.get("team2")):
             if team and team.get("teamId") == team_id:
-                return team.get("shortName") or team.get("name") or str(team_id)
+                return get_full_team_name(team) or str(team_id)
     return str(team_id)
 
 def get_arena_location(arena: dict) -> str:
@@ -116,8 +137,8 @@ def make_ics_event(item: dict, arena_ids: list, dtstamp: str) -> str:
     league = item.get("league") or {}
     comp = item.get("comp") or {}
     arena = item.get("arena")
-    team1 = (item.get("team1") or {}).get("name") or ""
-    team2 = (item.get("team2") or {}).get("name") or ""
+    team1 = get_summary_team_name(item.get("team1"))
+    team2 = get_summary_team_name(item.get("team2"))
     logging.debug(f"GameID: {game['id']}")
 
     link = f"{GAME_URL}/{game['id']}"

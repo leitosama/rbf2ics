@@ -181,6 +181,34 @@ def test_event_with_score(games, arenas_file):
     assert f"SUMMARY:🏀 {app.VIDEO_EMOJI} Темп-СУМЗ 97:101 2OT Новосибирск\n" in event
 
 
+def test_summary_has_region_of_ambiguous_team(games, arenas_file):
+    body = app.make_ics_calendar(TEAM_ID, [ARENA_ID], games)
+
+    assert f"SUMMARY:🏀 {app.VIDEO_EMOJI} Динамо (Уфа) vs Новосибирск\n" in body
+    assert f"SUMMARY:🏀 {app.VIDEO_EMOJI} Динамо (Грозный) vs Новосибирск\n" in body
+    assert "ЦСКА-2 (" not in body
+
+
+@pytest.mark.parametrize("team, name", [
+    ({"name": "Динамо", "shortName": "Динамо", "regionName": "Уфа"}, "Динамо (Уфа)"),
+    ({"name": "ЦСКА-2", "regionName": "Москва"}, "ЦСКА-2 (Москва)"),
+    ({"name": "Новосибирск", "regionName": "Новосибирск"}, "Новосибирск"),
+    ({"shortName": "ЧБК", "regionName": None}, "ЧБК"),
+    (None, ""),
+])
+def test_get_full_team_name(team, name):
+    assert app.get_full_team_name(team) == name
+
+
+def test_calendar_name_has_team_region(games):
+    for item in games:
+        for key in ("team1", "team2"):
+            if item[key]["teamId"] == TEAM_ID:
+                item[key]["regionName"] = "Бердск"
+
+    assert "X-WR-CALNAME:БК Новосибирск (Бердск)\n" in app.make_ics_calendar(TEAM_ID, [ARENA_ID], games)
+
+
 def test_calendar_name_falls_back_to_team_id():
     assert "X-WR-CALNAME:БК 42\n" in app.make_ics_calendar(42, [ARENA_ID], [])
 
