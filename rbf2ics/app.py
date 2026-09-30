@@ -25,6 +25,10 @@ LEAGUES = ["mcup", "msl", "vtb"]
 CALENDAR_TYPE = -1
 # The API returns 10 games by default
 MAX_RESULT_COUNT = 1000
+# VTB United League games are broadcast on Kinopoisk, which has no per-game links:
+# game["tv"] looks like "Кинопоиск (🎙️: Дмитрий Колинов)", so it gets the league page
+KINOPOISK_NAME = "кинопоиск"
+KINOPOISK_URL = "https://hd.kinopoisk.ru/sport/competition/37370/"
 GAME_URL = "https://russiabasket.ru/game"
 # Names shared by several teams of the leagues: in event summaries they get the team region
 AMBIGUOUS_TEAM_NAMES = {"Динамо"}
@@ -116,6 +120,15 @@ def get_video(s: str) -> Optional[str]:
         return None
     return f"https://{search.group(3)}"
 
+def get_broadcast(game: dict) -> Optional[str]:
+    """Broadcast link: the iframe video of the game, else Kinopoisk if it is the game's TV"""
+    video = get_video(game.get("video"))
+    if video:
+        return video
+    if KINOPOISK_NAME in (game.get("tv") or "").lower():
+        return KINOPOISK_URL
+    return None
+
 def get_datetime(game: dict) -> Tuple[str, str]:
     """DTSTART and DTEND values with their parameters, e.g. ";VALUE=DATE:20261102"
 
@@ -144,7 +157,7 @@ def make_ics_event(item: dict, arena_ids: list, dtstamp: str) -> str:
     link = f"{GAME_URL}/{game['id']}"
     if league.get("tag"):
         link += f"?league={league['tag']}"
-    video = get_video(game.get("video")) or "Ссылка не опубликована :("
+    video = get_broadcast(game) or "Ссылка не опубликована :("
     logging.debug(f"Video: {video}")
 
     if arena and int(arena["id"]) in arena_ids:
