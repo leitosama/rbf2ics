@@ -110,21 +110,13 @@ def get_arena_location(arena: dict) -> str:
         return ics_escape(arena.get("name") or "")
     return ics_escape(f"{known['name']}\n{known['address']}")
 
-def get_video(s: str) -> Optional[str]:
-    if not s:
-        return None
+def get_video(game: dict) -> Optional[str]:
+    s = game.get("video") or ""
     regexp = r"src=('|\")(https:|)\/\/([-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b(?:[-a-zA-Z0-9()@:%_\+.~#?&\/=]*))('|\")"
     search = re.search(regexp, s)
     logging.debug(f"Video: {s}")
-    if search is None:
-        return None
-    return f"https://{search.group(3)}"
-
-def get_broadcast(game: dict) -> Optional[str]:
-    """Broadcast link: the iframe video of the game, else Kinopoisk if it is the game's TV"""
-    video = get_video(game.get("video"))
-    if video:
-        return video
+    if search is not None:
+        return f"https://{search.group(3)}"
     if KINOPOISK_NAME in (game.get("tv") or "").lower():
         return KINOPOISK_URL
     return None
@@ -157,7 +149,7 @@ def make_ics_event(item: dict, arena_ids: list, dtstamp: str) -> str:
     link = f"{GAME_URL}/{game['id']}"
     if league.get("tag"):
         link += f"?league={league['tag']}"
-    video = get_broadcast(game) or "Ссылка не опубликована :("
+    video = get_video(game) or "Ссылка не опубликована :("
     logging.debug(f"Video: {video}")
 
     if arena and int(arena["id"]) in arena_ids:
