@@ -169,7 +169,7 @@ def make_event(item: dict, arena_ids: list, dtstamp: datetime) -> Event:
     link = f"{GAME_URL}/{game['id']}"
     if league.get("tag"):
         link += f"?league={league['tag']}"
-    video = get_video(game) or "Ссылка не опубликована :("
+    video = get_video(game)
     logging.debug(f"Video: {video}")
 
     if arena and int(arena["id"]) in arena_ids:
@@ -190,7 +190,7 @@ def make_event(item: dict, arena_ids: list, dtstamp: datetime) -> Event:
 
     tournament = ". ".join(n for n in (league.get("name"), comp.get("name")) if n)
     description = "\n".join([
-        f"Трансляция: {video}",
+        f"Трансляция: {video or 'Ссылка не опубликована :('}",
         f"Турнир: {tournament}",
         f"Арена: {(arena or {}).get('name') or '-'}",
         f"Ссылка на матч: {link}",
@@ -203,7 +203,8 @@ def make_event(item: dict, arena_ids: list, dtstamp: datetime) -> Event:
     event.add("description", description)
     if location:
         event.add("location", location)
-    event.add("url", link)
+    # The broadcast is what the user opens from the event, the game page is the fallback
+    event.add("url", video or link)
     event.add("dtstart", dtstart)
     event.add("dtend", dtend)
     return event

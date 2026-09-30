@@ -19,7 +19,7 @@ The calendar is built with [icalendar](https://icalendar.readthedocs.io/) (`make
 which takes care of RFC 5545 serialization: CRLF line endings, line folding and escaping of text values.
 
 - `SOURCE` is the address of the calendar itself: `https://rbf2ics.yc.leito.tech/ics/{team_id}/{arena_ids}.ics`.
-- `URL` of an event is the game page, `LOCATION` is the arena (with its address when it is in `arenas.json`).
+- `URL` of an event is the broadcast (the game page when there is none), `LOCATION` is the arena (with its address when it is in `arenas.json`).
 
 ## Architecture
 ```

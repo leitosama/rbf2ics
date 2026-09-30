@@ -139,7 +139,7 @@ def test_handler_other_arena_is_not_home(apigw_event, rbf_api):
     # A known arena keeps its address in away games too
     event = _event_of(ret["body"], 1083577)
     assert event["LOCATION"] == "Test; arena\nStreet, 1"
-    assert event["URL"] == "https://russiabasket.ru/game/1083577?league=msl"
+    assert event["URL"].startswith("https://embedded.slevel.ru/translations/")
 
 
 def test_handler_defaults_without_params(apigw_event, rbf_api):
@@ -187,7 +187,7 @@ def test_event_with_time(games, arenas_file):
     assert "DTSTART:20261001T130000Z" in body.split("\r\n")
     assert event["SUMMARY"] == f"🏀 {app.VIDEO_EMOJI} Темп-СУМЗ vs Новосибирск"
     assert event["LOCATION"] == "СК БК \"Темп-СУМЗ\""
-    assert event["URL"] == "https://russiabasket.ru/game/1083466?league=msl"
+    assert event["URL"] == "https://embedded.slevel.ru/translations/N2M3MTFlMjU0Y2IyNzU2MjRhZTQwMzRhNzA1YWExNWE6NDU5MTAxMTo0Ojo/embed7"
     description = str(event["DESCRIPTION"])
     assert description.startswith("Трансляция: https://embedded.slevel.ru/translations/")
     assert "\nТурнир: Суперлига. Регулярный чемпионат\n" in description
@@ -210,6 +210,7 @@ def test_event_without_video_and_arena(games, arenas_file):
     assert "Трансляция: Ссылка не опубликована :(\n" in event["DESCRIPTION"]
     assert "\nАрена: -\n" in event["DESCRIPTION"]
     assert "LOCATION" not in event
+    # No broadcast: the event links to the game page
     assert event["URL"] == "https://russiabasket.ru/game/1083833?league=msl"
 
 
@@ -220,6 +221,7 @@ def test_event_on_kinopoisk_links_to_league_page(games, arenas_file):
     event = _make_event(game)
 
     assert f"Трансляция: {app.KINOPOISK_URL}\n" in event["DESCRIPTION"]
+    assert event["URL"] == app.KINOPOISK_URL
 
 
 def test_event_video_wins_over_kinopoisk(games, arenas_file):
